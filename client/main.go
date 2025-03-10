@@ -86,12 +86,19 @@ func main() {
 	go peers.Transmitter(15647, role, peerTxEnable) // Creates a channel that broadcasts our role
 	go peers.Receiver(15647, peerUpdateCh)          // Creates a channel that listens
 
-	// We make channels for sending and receiving our custom data types
+	// We make channels for sending and receiving strings
 	helloTx := make(chan string)
 	helloRx := make(chan string)
 
 	go bcast.Transmitter(16569, helloTx)
 	go bcast.Receiver(16569, helloRx)
+
+	// Channels to send & receive button presses to the master elevator
+	btnTx := make(chan elevio.ButtonEvent)
+	btnRx := make(chan elevio.ButtonEvent)
+
+	go bcast.Transmitter(16164, btnTx)
+	go bcast.Receiver(16164, btnRx)
 
 	elevio.Init("localhost:"+port, numFloors)
 
@@ -149,32 +156,29 @@ func main() {
 	for {
 		select {
 		case a := <-drv_buttons: // New button update
-			// Gets a new order
-			// Adds it to elevatorOrders and sorts
+			// Gets a new button press
+			// If it's a hall order, forwards it to the master
 
 			time.Sleep(30 * time.Millisecond)
-
-			elevio.SetButtonLamp(a.Button, a.Floor, true)
+			// elevio.SetButtonLamp(a.Button, a.Floor, true)
 
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 			switch {
-			case a.Button == elevio.BT_HallUp:
-				addOrder(a.Floor, up, hall)
-			case a.Button == elevio.BT_HallDown:
-				addOrder(a.Floor, down, hall)
-			case a.Button == elevio.BT_Cab:
-				addOrder(a.Floor, 0, cab)
+			case a.Button = elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
+				btnTx <- a // Send it
+				fmt.Print("\nReceived hall press & forwarded it.\n")
+			case a.Button == elevio.BT_Cab: // Else (it's a cab)
+				addOrder(a.Floor, 0, cab) // Add it to the local array
+				fmt.Printf("\nAdded cab order, current direction is now: %v\n", d)
+				fmt.Printf("Added cab order, elevatorOrders is now: %v\n", elevatorOrders)
+				fmt.Printf("Added cab order, positionArray is now: %v\n", posArray)
 			}
-
-			fmt.Printf("\nAdded order, current direction is now: %v\n", d)
-			fmt.Printf("Added order, elevatorOrders is now: %v\n", elevatorOrders)
-			fmt.Printf("Added order, positionArray is now: %v\n", posArray)
 
 			sortAllOrders(&elevatorOrders, d, posArray)
 			// fmt.Printf("Sorted order, length of elevatorOrders is now: %d\n", len(elevatorOrders))
 
-			first_element := elevatorOrders[0]
+			first_element := elevatorOrders[0]	
 
 			// fmt.Printf("Sorted order\n")
 
