@@ -6,6 +6,29 @@ import (
 	"time"
 )
 
+func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights for the current order
+	switch {
+	case !allFloors:
+		// Turn off the button lamp at the current floor
+		if current_order.orderType == hall { // Hall button
+			if current_order.direction == up { // Hall up
+				elevio.SetButtonLamp(elevio.BT_HallUp, current_order.floor, false)
+			} else { // Hall down
+				elevio.SetButtonLamp(elevio.BT_HallDown, current_order.floor, false)
+			}
+		} else { // Cab button
+			elevio.SetButtonLamp(elevio.BT_Cab, current_order.floor, false)
+		}
+
+	case allFloors:
+		for f := 0; f < numFloors; f++ {
+			for b := elevio.ButtonType(0); b < 3; b++ {
+				elevio.SetButtonLamp(b, f, false)
+			}
+		}
+	}
+}
+
 func trackPosition(drv_floors2 chan int, drv_DirectionChange chan elevio.MotorDirection, d *elevio.MotorDirection) {
 	for {
 		select {
@@ -296,7 +319,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, drv_floors chan int, drv_ne
 				// Case 2: HandleOrders sent a new Order and it is at a different floor
 			case current_position != float32(current_order.floor):
 				current_position := extractPos()
-				
+
 				prev_direction := *d
 				changeDirBasedOnCurrentOrder(d, current_order, current_position)
 				new_direction := *d

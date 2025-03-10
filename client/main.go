@@ -18,66 +18,43 @@ const (
 const numFloors = 4
 
 var (
-	elevatorOrders       []Order
+	elevatorOrders       []Order // The local orders array for this elevator
 	mutex_elevatorOrders sync.Mutex
 )
 
 var (
-	posArray       [2*numFloors - 1]bool
+	posArray       [2*numFloors - 1]bool // The position array for this elevator
 	mutex_posArray sync.Mutex
 )
 
 var (
-	ableToCloseDoors bool
+	ableToCloseDoors bool // A boolean that tells us if we are able to close the doors
 	mutex_doors      sync.Mutex
 )
 
 var (
-	role string
+	role string // The role of the elevator (Master, Slave or PrimaryBackup)
 )
 
-var mutex_d sync.Mutex
+var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
-var lastDirForStopFunction elevio.MotorDirection
+var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
 
-func lockMutexes(mutexes ...*sync.Mutex) {
+func lockMutexes(mutexes ...*sync.Mutex) { // Locks multiple mutexes
 	for _, m := range mutexes {
 		m.Lock()
 	}
 }
 
-func unlockMutexes(mutexes ...*sync.Mutex) {
+func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 	for _, m := range mutexes {
 		m.Unlock()
 	}
 }
 
-func turnOffLights(current_order Order, allFloors bool) {
-	switch {
-	case !allFloors:
-		// Turn off the button lamp at the current floor
-		if current_order.orderType == hall { // Hall button
-			if current_order.direction == up { // Hall up
-				elevio.SetButtonLamp(elevio.BT_HallUp, current_order.floor, false)
-			} else { // Hall down
-				elevio.SetButtonLamp(elevio.BT_HallDown, current_order.floor, false)
-			}
-		} else { // Cab button
-			elevio.SetButtonLamp(elevio.BT_Cab, current_order.floor, false)
-		}
-
-	case allFloors:
-		for f := 0; f < numFloors; f++ {
-			for b := elevio.ButtonType(0); b < 3; b++ {
-				elevio.SetButtonLamp(b, f, false)
-			}
-		}
-	}
-}
-
 func main() {
-	// Decide the port on which we are working
-	port_val := flag.String("port", "", "The port of the elevator")
+	// Decide the port on which we are working (for the server) & the role of the elevator
+	port_val := flag.String("port", "", "The port of the elevator client / server")
 	role_val := flag.String("role", "", "The role of the elevator")
 	flag.Parse()
 
@@ -86,12 +63,12 @@ func main() {
 	role = *role_val
 	fmt.Printf("Role passed: %v\n", role)
 
-	peerUpdateCh := make(chan peers.PeerUpdate)
-	peerTxEnable := make(chan bool)
+	peerUpdateCh := make(chan peers.PeerUpdate)     // Creates a channel that listens for updates from the peers (New, Loss)
+	peerTxEnable := make(chan bool)                 // Creates a channel that enables/disables the transmitter
 	go peers.Transmitter(15647, role, peerTxEnable) // Creates a channel that broadcasts our role
 	go peers.Receiver(15647, peerUpdateCh)          // Creates a channel that listens
 
-	// We make channels for sending and receiving strings
+	// We make channels for sending and receiving strings (confirmations, etc.)
 	helloTx := make(chan string)
 	helloRx := make(chan string)
 
@@ -105,8 +82,10 @@ func main() {
 	go bcast.Transmitter(16164, btnTx)
 	go bcast.Receiver(16164, btnRx)
 
+	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
 
+	// Channels for the driver
 	drv_buttons := make(chan elevio.ButtonEvent)
 	drv_floors := make(chan int)
 	drv_floors2 := make(chan int)
@@ -150,22 +129,17 @@ func main() {
 
 	// Section_END ---- Initialization
 
+	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
 	go attendToSpecificOrder(&d, drv_floors, drv_newOrder, drv_DirectionChange)
 
-	if role == "Slave" {
-		d = elevio.MD_Up
-		elevio.SetMotorDirection(d)
-	}
+	for { // Main loop
+		select { // Select statement
 
-	for {
-		select {
 		case a := <-drv_buttons: // New button update
-			// Gets a new button press
-			// If it's a hall order, forwards it to the master
+			// Gets a new button press. If it's a hall order, forwards it to the master
 
-			time.Sleep(30 * time.Millisecond)
-			// elevio.SetButtonLamp(a.Button, a.Floor, true)
+			time.Sleep(30 * time.Millisecond) // Poll rate of the buttons
 
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
@@ -180,14 +154,12 @@ func main() {
 				fmt.Printf("Added cab order, positionArray is now: %v\n", posArray)
 			}
 
+			// Sort the local orders of the elevator
 			sortAllOrders(&elevatorOrders, d, posArray)
-			// fmt.Printf("Sorted order, length of elevatorOrders is now: %d\n", len(elevatorOrders))
 
 			first_element := elevatorOrders[0]
 
-			// fmt.Printf("Sorted order\n")
-
-			fmt.Printf("ElevatorOrders is now: %v\n", elevatorOrders)
+			fmt.Printf("ElevatorOrders for %v is now: %v\n", role, elevatorOrders)
 
 			// Sending the first element of elevatorOrders through the drv_newOrder channel
 			// We don't have to worry about the possibility of it being the same order that we are attending to
@@ -196,10 +168,10 @@ func main() {
 
 			drv_newOrder <- first_element
 
-		case a := <-helloRx:
+		case a := <-helloRx: // Received a string message from another elevator
 			fmt.Printf("Received: %#v\n", a)
 
-		case a := <-drv_stop:
+		case a := <-drv_stop: // Stop button pressed
 			switch {
 			case a:
 				// Rising edge, from unpressed to pressed
@@ -219,12 +191,6 @@ func main() {
 
 				elevio.SetStopLamp(false)
 			}
-
-		// case a := <-drv_floors3:
-		// 	if a == 0 {
-		// 		d = elevio.MD_Stop
-		// 		elevio.SetMotorDirection(d)
-		// 	}
 
 		case a := <-drv_obstr: // Obstruction switch pressed (meaning doors are opened)
 			// Unable to close the doors until obstruction switch is released
