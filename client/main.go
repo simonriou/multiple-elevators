@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+const (
+	BTN_PORT = 16164
+	STR_PORT = 16569
+)
+
 const numFloors = 4
 
 var (
@@ -90,8 +95,8 @@ func main() {
 	helloTx := make(chan string)
 	helloRx := make(chan string)
 
-	go bcast.Transmitter(16569, helloTx)
-	go bcast.Receiver(16569, helloRx)
+	go bcast.Transmitter(STR_PORT, helloTx)
+	go bcast.Receiver(STR_PORT, helloRx)
 
 	// Channels to send & receive button presses to the master elevator
 	btnTx := make(chan elevio.ButtonEvent)
@@ -165,7 +170,7 @@ func main() {
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 			switch {
-			case a.Button = elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
+			case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 				btnTx <- a // Send it
 				fmt.Print("\nReceived hall press & forwarded it.\n")
 			case a.Button == elevio.BT_Cab: // Else (it's a cab)
@@ -178,7 +183,7 @@ func main() {
 			sortAllOrders(&elevatorOrders, d, posArray)
 			// fmt.Printf("Sorted order, length of elevatorOrders is now: %d\n", len(elevatorOrders))
 
-			first_element := elevatorOrders[0]	
+			first_element := elevatorOrders[0]
 
 			// fmt.Printf("Sorted order\n")
 
