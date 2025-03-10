@@ -11,9 +11,18 @@ import (
 )
 
 const (
-	BTN_PORT = 16164
-	STR_PORT = 16569
+	BTN_PORT   = 16164
+	STR_PORT   = 16569
+	STATE_PORT = 16165
 )
+
+type ElevatorState struct {
+	elevatorOrders    []Order
+	d                 elevio.MotorDirection
+	position          [2*numFloors - 1]bool
+	doorOpen          bool
+	stopButtonPressed bool
+}
 
 const numFloors = 4
 
@@ -75,12 +84,19 @@ func main() {
 	go bcast.Transmitter(STR_PORT, helloTx)
 	go bcast.Receiver(STR_PORT, helloRx)
 
-	// Channels to send & receive button presses to the master elevator
+	// Channels to receive & send button presses to the master elevator
 	btnTx := make(chan elevio.ButtonEvent)
 	btnRx := make(chan elevio.ButtonEvent)
 
-	go bcast.Transmitter(16164, btnTx)
-	go bcast.Receiver(16164, btnRx)
+	go bcast.Transmitter(BTN_PORT, btnTx)
+	go bcast.Receiver(BTN_PORT, btnRx)
+
+	// Channels to receive & send elev. states to the master elevator
+	stateTx := make(chan ElevatorState)
+	stateRx := make(chan ElevatorState)
+
+	go bcast.Transmitter(STATE_PORT, stateTx)
+	go bcast.Receiver(STATE_PORT, stateRx)
 
 	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
