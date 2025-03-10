@@ -16,14 +16,6 @@ const (
 	STATE_PORT = 16165
 )
 
-type ElevatorState struct {
-	elevatorOrders    []Order
-	d                 elevio.MotorDirection
-	position          [2*numFloors - 1]bool
-	doorOpen          bool
-	stopButtonPressed bool
-}
-
 const numFloors = 4
 
 var (
@@ -49,6 +41,19 @@ var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
 
+type ElevatorState struct {
+	elevatorOrders    []Order
+	d                 elevio.MotorDirection
+	position          [2*numFloors - 1]bool
+	doorOpen          bool
+	stopButtonPressed bool
+}
+
+type ElevStateMessage struct {
+	state ElevatorState
+	id    string
+}
+
 func lockMutexes(mutexes ...*sync.Mutex) { // Locks multiple mutexes
 	for _, m := range mutexes {
 		m.Lock()
@@ -62,15 +67,24 @@ func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 }
 
 func main() {
+	// Section_START -- FLAGS
+
 	// Decide the port on which we are working (for the server) & the role of the elevator
 	port_val := flag.String("port", "", "The port of the elevator client / server")
 	role_val := flag.String("role", "", "The role of the elevator")
+	id_val := flag.String("id", "", "The id of the elevator")
 	flag.Parse()
 
 	port := *port_val
 	fmt.Printf("Working on address: %v\n", "localhost:"+port)
 	role = *role_val
 	fmt.Printf("Role passed: %v\n", role)
+	id := *id_val
+	fmt.Printf("Id passed: %v\n", id)
+
+	// Section_END -- FLAGS
+
+	// Section_START -- NETWORK CHANNELS (For all)
 
 	peerUpdateCh := make(chan peers.PeerUpdate)     // Creates a channel that listens for updates from the peers (New, Loss)
 	peerTxEnable := make(chan bool)                 // Creates a channel that enables/disables the transmitter
@@ -84,19 +98,45 @@ func main() {
 	go bcast.Transmitter(STR_PORT, helloTx)
 	go bcast.Receiver(STR_PORT, helloRx)
 
-	// Channels to receive & send button presses to the master elevator
-	btnTx := make(chan elevio.ButtonEvent)
-	btnRx := make(chan elevio.ButtonEvent)
+	// Making a channel for transmitting hallButtons
+	hallBtnTx := make(chan elevio.ButtonEvent)
+	go bcast.Transmitter(BTN_PORT, hallBtnTx)
 
-	go bcast.Transmitter(BTN_PORT, btnTx)
-	go bcast.Receiver(BTN_PORT, btnRx)
+	// Making a channel for recieving elevator states
+	stateTx := make(chan ElevStateMessage)
+	go bcast.Transmitter(STATE_PORT, stateTx)
+
+	// Making a channel for recieving orders from the master
+	orderRx := make(chan Order)
+	go bcast.Receiver(BTN_PORT, orderRx)
+
+	// Section_END - NETWORK CHANNELS (For all)
+
+	// Section_START -- NETWORK CHANNELS (For specific roles)
 
 	// Channels to receive & send elev. states to the master elevator
-	stateTx := make(chan ElevatorState)
-	stateRx := make(chan ElevatorState)
+	switch role {
+	case "Master":
+		// Making a channel for recieving hallbuttons
+		hallBtnRx := make(chan elevio.ButtonEvent)
+		go bcast.Receiver(BTN_PORT, hallBtnRx)
 
-	go bcast.Transmitter(STATE_PORT, stateTx)
-	go bcast.Receiver(STATE_PORT, stateRx)
+		// Making a channel for recieving elevator states
+		stateRx := make(chan ElevStateMessage)
+		go bcast.Receiver(STATE_PORT, stateRx)
+
+		// Making a channel for sending orders to the slaves
+		orderTx := make(chan Order)
+		go bcast.Transmitter(BTN_PORT, orderTx)
+
+		// Starting the master routine
+		go MasterRoutine(hallBtnTx, hallBtnRx, stateRx, orderTx)
+
+	case "Primary":
+		go PrimaryRoutine()
+	}
+
+	// Section_END -- NETWORK CHANNELS (For specific roles)
 
 	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
@@ -161,7 +201,7 @@ func main() {
 
 			switch {
 			case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
-				btnTx <- a // Send it
+				hallBtnTx <- a // Send it
 				fmt.Print("\nReceived hall press & forwarded it.\n")
 			case a.Button == elevio.BT_Cab: // Else (it's a cab)
 				addOrder(a.Floor, 0, cab) // Add it to the local array
