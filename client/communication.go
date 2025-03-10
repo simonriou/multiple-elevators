@@ -4,7 +4,7 @@ import (
 	"Driver-go/elevio"
 )
 
-func MasterRoutine(hallBtnTx chan elevio.ButtonEvent, hallBtnRx chan elevio.ButtonEvent, stateRx chan ElevStateMessage, orderTx chan Order) {
+func MasterRoutine(hallBtnTx chan elevio.ButtonEvent, hallBtnRx chan elevio.ButtonEvent, stateRx chan ElevState, orderTx chan Order) {
 
 	// Define datatypes for master
 	// Define a slice that represents all the states of the elevators

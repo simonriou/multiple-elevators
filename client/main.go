@@ -37,20 +37,28 @@ var (
 	role string // The role of the elevator (Master, Slave or PrimaryBackup)
 )
 
+var (
+	lastFloor int // The last floor the elevator was at
+)
+
 var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
 
 type ElevatorState struct {
+}
+
+type ElevState struct {
 	elevatorOrders    []Order
 	d                 elevio.MotorDirection
 	position          [2*numFloors - 1]bool
 	doorOpen          bool
 	stopButtonPressed bool
+	id                string
 }
 
-type ElevStateMessage struct {
-	state ElevatorState
+type HallOrderMessage struct {
+	order Order
 	id    string
 }
 
@@ -103,7 +111,7 @@ func main() {
 	go bcast.Transmitter(BTN_PORT, hallBtnTx)
 
 	// Making a channel for recieving elevator states
-	stateTx := make(chan ElevStateMessage)
+	stateTx := make(chan HallOrderMessage)
 	go bcast.Transmitter(STATE_PORT, stateTx)
 
 	// Making a channel for recieving orders from the master
@@ -122,7 +130,7 @@ func main() {
 		go bcast.Receiver(BTN_PORT, hallBtnRx)
 
 		// Making a channel for recieving elevator states
-		stateRx := make(chan ElevStateMessage)
+		stateRx := make(chan ElevState)
 		go bcast.Receiver(STATE_PORT, stateRx)
 
 		// Making a channel for sending orders to the slaves
@@ -223,6 +231,9 @@ func main() {
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 			drv_newOrder <- first_element
+
+		case a := <-drv_floors: // Reaching a new floor
+			lastFloor = a
 
 		case a := <-helloRx: // Received a string message from another elevator
 			fmt.Printf("Received: %#v\n", a)
