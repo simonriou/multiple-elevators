@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func determineBehaviour(d *elevio.MotorDirection) string {
+func determineBehaviour(d *elevio.MotorDirection) string { // Determine the behaviour of the elevator based on its direction
 	switch {
 	case *d == elevio.MD_Stop:
 		return "idle"
@@ -16,7 +16,7 @@ func determineBehaviour(d *elevio.MotorDirection) string {
 	return "unknown"
 }
 
-func extractCabRequests(elevatorOrders []Order) []bool {
+func extractCabRequests(elevatorOrders []Order) []bool { // Extract the cab requests from the elevatorOrders
 	cabRequests := make([]bool, numFloors)
 	for _, order := range elevatorOrders {
 		if order.orderType == cab {
@@ -26,7 +26,7 @@ func extractCabRequests(elevatorOrders []Order) []bool {
 	return cabRequests
 }
 
-func motorDirectionToString(d elevio.MotorDirection) string {
+func motorDirectionToString(d elevio.MotorDirection) string { // Convert the motor direction to a string
 	switch {
 	case d == elevio.MD_Up:
 		return "up"
@@ -38,7 +38,7 @@ func motorDirectionToString(d elevio.MotorDirection) string {
 	return "unknown"
 }
 
-func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order, latestState *ElevState) {
+func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order, latestState *ElevState) { // Update the state of the elevator
 	mutex_state.Lock()
 	defer mutex_state.Unlock()
 
@@ -71,7 +71,7 @@ func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights
 	}
 }
 
-func trackPosition(drv_floors2 chan int, drv_DirectionChange chan elevio.MotorDirection, d *elevio.MotorDirection) {
+func trackPosition(drv_floors2 chan int, drv_DirectionChange chan elevio.MotorDirection, d *elevio.MotorDirection) { // Track the position of the elevator
 	for {
 		select {
 		case a := <-drv_floors2:
@@ -162,7 +162,7 @@ func printElevatorOrders(elevatorOrders []Order) {
 	printOrders(elevatorOrders)
 }
 
-func reverseDirection(d *elevio.MotorDirection) {
+func reverseDirection(d *elevio.MotorDirection) { // Reverse the direction of the elevator
 	switch {
 	case *d == elevio.MD_Down:
 		*d = elevio.MD_Up
@@ -189,7 +189,7 @@ func updatePosArray(dir elevio.MotorDirection, posArray *[2*numFloors - 1]bool) 
 	}
 }
 
-func extractPos() float32 {
+func extractPos() float32 { // Extract the current position of the elevator
 	currentFloor := float32(0)
 	for i := 0; i < 2*numFloors-1; i++ {
 		if posArray[i] {
@@ -199,7 +199,7 @@ func extractPos() float32 {
 	return currentFloor
 }
 
-func addOrder(floor int, direction OrderDirection, typeOrder OrderType) {
+func addOrder(floor int, direction OrderDirection, typeOrder OrderType) { // Add an order to the elevatorOrders
 	exists := false
 
 	if typeOrder == cab {
@@ -245,7 +245,7 @@ func PopOrders() {
 	//fmt.Printf("After deleting orders from elevatorOrders: %v\n", elevatorOrders)
 }
 
-func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order, current_floor float32) {
+func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order, current_floor float32) { // Change the direction based on the current order
 	switch {
 	case current_floor > float32(current_order.floor):
 		*d = elevio.MD_Down
@@ -256,7 +256,7 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 	}
 }
 
-func StopBlocker(Inital_duration time.Duration) {
+func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
 outerloop:

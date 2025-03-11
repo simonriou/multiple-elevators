@@ -10,24 +10,19 @@ import (
 	"time"
 )
 
-const (
+const ( // Ports
 	BTN_PORT   = 16164
 	STR_PORT   = 16569
 	STATE_PORT = 16165
 )
 
-const numFloors = 4
+const numFloors = 4 // Number of floors
 
-type ElevState struct {
+type ElevState struct { // Struct for the state of the elevator
 	Behavior    string `json:"behaviour"`   // 'moving' or 'idle'
 	Floor       int    `json:"floor"`       // The floor the elevator is at
 	Direction   string `json:"direction"`   // 'up', 'down' or 'stop'
 	CabRequests []bool `json:"cabRequests"` // The cab requests of the elevator (format [0, 0, 0, 0])
-}
-
-type HallOrderMessage struct {
-	order Order
-	id    string
 }
 
 var (
