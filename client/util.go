@@ -26,6 +26,20 @@ func extractCabRequests(elevatorOrders []Order) []bool { // Extract the cab requ
 	return cabRequests
 }
 
+func extractHallOrders(elevatorOrders []Order) [][2]bool { // Extract the hall orders from the elevatorOrders. Return format is [floor][up, down]
+	hallOrders := make([][2]bool, numFloors)
+	for _, order := range elevatorOrders {
+		if order.orderType == hall {
+			if order.direction == up {
+				hallOrders[order.floor][0] = true
+			} else {
+				hallOrders[order.floor][1] = true
+			}
+		}
+	}
+	return hallOrders
+}
+
 func motorDirectionToString(d elevio.MotorDirection) string { // Convert the motor direction to a string
 	switch {
 	case d == elevio.MD_Up:
