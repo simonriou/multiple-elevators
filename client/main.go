@@ -11,9 +11,11 @@ import (
 )
 
 const ( // Ports
-	BTN_PORT   = 16164
-	STR_PORT   = 16569
-	STATE_PORT = 16165
+	HallOrder_PORT = 16120 + iota
+	HallOrderRawBTN_PORT
+	SingleElevatorState_PORT
+	AllStatesPort
+	PeerChannel
 )
 
 const numFloors = 4 // Number of floors
@@ -77,77 +79,28 @@ func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 
 func main() {
 	// Section_START -- FLAGS
-
 	// Decide the port on which we are working (for the server) & the role of the elevator
-	port_val := flag.String("port", "", "The port of the elevator client / server")
-	role_val := flag.String("role", "", "The role of the elevator")
-	id_val := flag.Int("id", -1, "The id of the elevator")
+	port_raw := flag.String("port", "", "The port of the elevator client / server")
+	role_raw := flag.String("role", "", "The role of the elevator")
+	id_raw := flag.Int("id", -1, "The id of the elevator")
 	flag.Parse()
 
-	port := *port_val
+	port := *port_raw
+	role = *role_raw
+	id := *id_raw
 	fmt.Printf("Working on address: %v\n", "localhost:"+port)
-	role = *role_val
 	fmt.Printf("Role passed: %v\n", role)
-	id := *id_val
 	fmt.Printf("Id passed: %v\n", id)
-
 	// Section_END -- FLAGS
 
-	// Section_START -- NETWORK CHANNELS (For all)
 
-	peerUpdateCh := make(chan peers.PeerUpdate)     // Creates a channel that listens for updates from the peers (New, Loss)
-	peerTxEnable := make(chan bool)                 // Creates a channel that enables/disables the transmitter
-	go peers.Transmitter(15647, role, peerTxEnable) // Creates a channel that broadcasts our role
-	go peers.Receiver(15647, peerUpdateCh)          // Creates a channel that listens
-
-	// We make channels for sending and receiving strings (confirmations, etc.)
-	helloTx := make(chan string)
-	helloRx := make(chan string)
-
-	go bcast.Transmitter(STR_PORT, helloTx)
-	go bcast.Receiver(STR_PORT, helloRx)
-
-	// Making a channel for transmitting hallButtons
+	// Create the network channels for at the single-Elevator end
 	hallBtnTx := make(chan elevio.ButtonEvent)
-	go bcast.Transmitter(BTN_PORT, hallBtnTx)
-
-	// Making a channel for recieving elevator states
-	stateTx := make(chan StateMsg)
-	go bcast.Transmitter(STATE_PORT, stateTx)
-
-	// Making a channel for recieving orders from the master
 	hallOrderRx := make(chan Order)
-	go bcast.Receiver(BTN_PORT, hallOrderRx)
+	singleStateTx := make(chan StateMsg)
 
-	// Section_END - NETWORK CHANNELS (For all)
-
-	// Section_START -- NETWORK CHANNELS (For specific roles)
-
-	// Channels to receive & send elev. states to the master elevator
-	switch role {
-	case "Master":
-		// Making a channel for recieving hallbuttons
-		hallBtnRx := make(chan elevio.ButtonEvent)
-		go bcast.Receiver(BTN_PORT, hallBtnRx)
-
-		// Making a channel for recieving elevator states
-		stateRx := make(chan StateMsg)
-		go bcast.Receiver(STATE_PORT, stateRx)
-
-		// Making a channel for sending orders to the slaves
-		hallOrderTx := make(chan HallOrderAndId)
-		go bcast.Transmitter(BTN_PORT, hallOrderTx)
-
-		// Starting the master routine
-		go MasterRoutine(hallBtnRx, stateRx, hallOrderTx)
-
-	case "Primary":
-
-		// primaryMasterRx := make(chan )
-		go PrimaryRoutine()
-	}
-
-	// Section_END -- NETWORK CHANNELS (For specific roles)
+	// Initialize network (in communications.go)
+	InitializeNetwork(role, id, hallOrderRx, hallBtnTx, singleStateTx)
 
 	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
@@ -195,7 +148,6 @@ func main() {
 	<-drv_finishedInitialization
 
 	fmt.Printf("Initialization finished\n")
-	helloTx <- "Initialization finished.\n"
 
 	// Section_END ---- Initialization
 
@@ -209,51 +161,60 @@ func main() {
 		case a := <-drv_buttons: // New button update
 			// Gets a new button press. If it's a hall order, forwards it to the master
 
-			time.Sleep(30 * time.Millisecond) // Poll rate of the buttons
+			time.Sleep(30 * time.Millisecond) // > Poll rate of the buttons
 
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 			switch {
-			case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
-				hallBtnTx <- a // Send it
-			case a.Button == elevio.BT_Cab: // Else (it's a cab)
-				addOrder(a.Floor, 0, cab) // Add it to the local array
+				case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 
-				// Sort the local orders of the elevator
-				sortAllOrders(&elevatorOrders, d, posArray)
+					hallBtnTx <- a 
 
-				first_element := elevatorOrders[0]
+				case a.Button == elevio.BT_Cab: // Else (it's a cab)
 
-				// Send the new state of the elevator to the master
-				updateState(&d, lastFloor, elevatorOrders, &latestState)
-				stateTx <- StateMsg{id, latestState}
+					addOrder(a.Floor, 0, cab) 
+					sortAllOrders(&elevatorOrders, d, posArray)
+					first_element := elevatorOrders[0]
 
-				drv_newOrder <- first_element
+					// Send the new state of the elevator to the master
+					updateState(&d, lastFloor, elevatorOrders, &latestState)
+					singleStateTx <- StateMsg{id, latestState}
+
+					drv_newOrder <- first_element
 			}
 
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-		case a := <-hallOrderRx: // Received an order from the master
+		case a := <-hallOrderRx: // Received an hallOrderAndId from the master
+			// Assumtion: Every single-Elevator will recieve this
+			if a.id == id {
+				newHallOrder := a.hallOrder
+				lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+				addOrder(newHallOrder.Floor, newHallOrder.direction, hall) 
+				sortAllOrders(&elevatorOrders, d, posArray)
+				first_element := elevatorOrders[0]
 
-			sortAllOrders(&elevatorOrders, d, posArray)
-			drv_newOrder <- a
+				// Send the new state of the elevator to the master
+				updateState(&d, lastFloor, elevatorOrders, &latestState)
+				singleStateTx <- StateMsg{id, latestState}
 
-			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+				drv_newOrder <- first_element
+
+				unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+			}
 
 		case a := <-drv_floors: // Reaching a new floor
 			lastFloor = a
 
 			// Send new state
 			updateState(&d, lastFloor, elevatorOrders, &latestState)
-			stateTx <- StateMsg{id, latestState}
+			singleStateTx <- StateMsg{id, latestState}
 
 		case a := <-drv_stop: // Stop button pressed
 			switch {
 			case a:
 				// Rising edge, from unpressed to pressed
-				fmt.Printf("Received rising edge from drv_stop\n")
 				lockMutexes(&mutex_d)
 				elevio.SetStopLamp(true)
 				lastDirForStopFunction = d
@@ -262,7 +223,6 @@ func main() {
 
 			case !a:
 				// Falling edge, from pressed to unpressed
-				fmt.Printf("Received falling edge from drv_stop\n")
 				lockMutexes(&mutex_d)
 				elevio.SetMotorDirection(lastDirForStopFunction)
 				unlockMutexes(&mutex_d)
