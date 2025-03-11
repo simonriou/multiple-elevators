@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+func btnPressToOrder(btn elevio.ButtonEvent) Order { // Convert a button press to an order for hall orders
+	orderType := hall
+	orderDirection := up
+	if btn.Button == elevio.BT_HallDown {
+		orderDirection = down
+	}
+	return Order{floor: btn.Floor, direction: orderDirection, orderType: orderType}
+}
+
 func determineBehaviour(d *elevio.MotorDirection) string { // Determine the behaviour of the elevator based on its direction
 	switch {
 	case *d == elevio.MD_Stop:
@@ -14,30 +23,6 @@ func determineBehaviour(d *elevio.MotorDirection) string { // Determine the beha
 		return "moving"
 	}
 	return "unknown"
-}
-
-func extractCabRequests(elevatorOrders []Order) []bool { // Extract the cab requests from the elevatorOrders
-	cabRequests := make([]bool, numFloors)
-	for _, order := range elevatorOrders {
-		if order.orderType == cab {
-			cabRequests[order.floor] = true
-		}
-	}
-	return cabRequests
-}
-
-func extractHallOrders(elevatorOrders []Order) [][2]bool { // Extract the hall orders from the elevatorOrders. Return format is [floor][up, down]
-	hallOrders := make([][2]bool, numFloors)
-	for _, order := range elevatorOrders {
-		if order.orderType == hall {
-			if order.direction == up {
-				hallOrders[order.floor][0] = true
-			} else {
-				hallOrders[order.floor][1] = true
-			}
-		}
-	}
-	return hallOrders
 }
 
 func motorDirectionToString(d elevio.MotorDirection) string { // Convert the motor direction to a string
@@ -59,7 +44,7 @@ func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order
 	latestState.Behavior = determineBehaviour(d)
 	latestState.Floor = lastFloor
 	latestState.Direction = motorDirectionToString(*d)
-	latestState.CabRequests = extractCabRequests(elevatorOrders)
+	latestState.LocalRequests = elevatorOrders
 }
 
 func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights for the current order
