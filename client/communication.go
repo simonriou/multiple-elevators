@@ -4,6 +4,11 @@ import (
 	"Driver-go/elevio"
 )
 
+type HRAInput struct {
+	HallRequests [][2]bool            `json:"hallRequests"`
+	States       map[string]ElevState `json:"states"`
+}
+
 func MasterRoutine(hallBtnTx chan elevio.ButtonEvent, hallBtnRx chan elevio.ButtonEvent, stateRx chan ElevState, orderTx chan Order) {
 
 	// Define datatypes for master
@@ -13,10 +18,11 @@ func MasterRoutine(hallBtnTx chan elevio.ButtonEvent, hallBtnRx chan elevio.Butt
 
 	for {
 		select {
-		// Listen for updates on the ElevStateMessage channel
+		// When getting new hall button presses from the elevators
+		// Add them to the global order list that will be used in the input to the HRA (HallRequests list)
 
-		// Listen for updates on the hallBtnRx
-
+		// When getting new states updates from the elevators
+		// Update the global state list
 		}
 	}
 }
