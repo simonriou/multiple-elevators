@@ -18,6 +18,18 @@ const (
 
 const numFloors = 4
 
+type ElevState struct {
+	Behavior    string `json:"behaviour"`   // 'moving' or 'idle'
+	Floor       int    `json:"floor"`       // The floor the elevator is at
+	Direction   string `json:"direction"`   // 'up', 'down' or 'stop'
+	CabRequests []bool `json:"cabRequests"` // The cab requests of the elevator (format [0, 0, 0, 0])
+}
+
+type HallOrderMessage struct {
+	order Order
+	id    string
+}
+
 var (
 	elevatorOrders       []Order // The local orders array for this elevator
 	mutex_elevatorOrders sync.Mutex
@@ -41,26 +53,14 @@ var (
 	lastFloor int // The last floor the elevator was at
 )
 
+var (
+	latestState ElevState // The latest state of the elevator
+	mutex_state sync.Mutex
+)
+
 var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
-
-type ElevatorState struct {
-}
-
-type ElevState struct {
-	elevatorOrders    []Order
-	d                 elevio.MotorDirection
-	position          [2*numFloors - 1]bool
-	doorOpen          bool
-	stopButtonPressed bool
-	id                string
-}
-
-type HallOrderMessage struct {
-	order Order
-	id    string
-}
 
 func lockMutexes(mutexes ...*sync.Mutex) { // Locks multiple mutexes
 	for _, m := range mutexes {
@@ -111,7 +111,7 @@ func main() {
 	go bcast.Transmitter(BTN_PORT, hallBtnTx)
 
 	// Making a channel for recieving elevator states
-	stateTx := make(chan HallOrderMessage)
+	stateTx := make(chan ElevState)
 	go bcast.Transmitter(STATE_PORT, stateTx)
 
 	// Making a channel for recieving orders from the master
@@ -183,6 +183,9 @@ func main() {
 		}
 		ableToCloseDoors = true
 		turnOffLights(Order{0, -1, 0}, true)
+
+		updateState(&d, 0, elevatorOrders, &latestState)
+
 		drv_finishedInitialization <- true
 	}()
 
@@ -216,6 +219,10 @@ func main() {
 				fmt.Printf("\nAdded cab order, current direction is now: %v\n", d)
 				fmt.Printf("Added cab order, elevatorOrders is now: %v\n", elevatorOrders)
 				fmt.Printf("Added cab order, positionArray is now: %v\n", posArray)
+
+				// Send the new state of the elevator to the master
+				updateState(&d, lastFloor, elevatorOrders, &latestState)
+				stateTx <- latestState
 			}
 
 			// Sort the local orders of the elevator
@@ -234,6 +241,10 @@ func main() {
 
 		case a := <-drv_floors: // Reaching a new floor
 			lastFloor = a
+
+			// Send new state
+			updateState(&d, lastFloor, elevatorOrders, &latestState)
+			stateTx <- latestState
 
 		case a := <-helloRx: // Received a string message from another elevator
 			fmt.Printf("Received: %#v\n", a)

@@ -6,6 +6,48 @@ import (
 	"time"
 )
 
+func determineBehaviour(d *elevio.MotorDirection) string {
+	switch {
+	case *d == elevio.MD_Stop:
+		return "idle"
+	case *d == elevio.MD_Up || *d == elevio.MD_Down:
+		return "moving"
+	}
+	return "unknown"
+}
+
+func extractCabRequests(elevatorOrders []Order) []bool {
+	cabRequests := make([]bool, numFloors)
+	for _, order := range elevatorOrders {
+		if order.orderType == cab {
+			cabRequests[order.floor] = true
+		}
+	}
+	return cabRequests
+}
+
+func motorDirectionToString(d elevio.MotorDirection) string {
+	switch {
+	case d == elevio.MD_Up:
+		return "up"
+	case d == elevio.MD_Down:
+		return "down"
+	case d == elevio.MD_Stop:
+		return "stop"
+	}
+	return "unknown"
+}
+
+func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order, latestState *ElevState) {
+	mutex_state.Lock()
+	defer mutex_state.Unlock()
+
+	latestState.Behavior = determineBehaviour(d)
+	latestState.Floor = lastFloor
+	latestState.Direction = motorDirectionToString(*d)
+	latestState.CabRequests = extractCabRequests(elevatorOrders)
+}
+
 func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights for the current order
 	switch {
 	case !allFloors:
