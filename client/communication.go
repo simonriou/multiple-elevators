@@ -12,12 +12,12 @@ type HRAInput struct {
 	States       map[string]ElevState
 }
 
-type HallOrderAndId struct {
+type HallOrderMsg struct {
 	Id        int
 	HallOrder Order
 }
 
-func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hallOrderTx chan HallOrderAndId) {
+func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hallOrderTx chan HallOrderMsg) {
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -64,21 +64,21 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 				}
 			}
 
-			hallOrderAndId := HallOrderAndId{bestElevator, btnPressToOrder(a)}
-			fmt.Printf("HallOrderAndId sent: %v\n", HallOrderAndId{bestElevator, btnPressToOrder(a)})
+			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
+			fmt.Printf("HallOrderMsg sent: %v\n", HallOrderMessage)
 
 			// Serialize hallOrdersAndId using go
 			/*
 				var b bytes.Buffer
 				enc := gob.NewEncoder(&b)
-				if err := enc.Encode(hallOrderAndId); err != nil {
-					fmt.Println("Error encoding HallOrderAndId:", err)
+				if err := enc.Encode(HallOrderMsg); err != nil {
+					fmt.Println("Error encoding HallOrderMsg:", err)
 					return
 				}
 				// Send the serialized hallOrder over the channel
 			*/
 
-			hallOrderTx <- b
+			hallOrderTx <- HallOrderMessage
 
 			fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
 		case a := <-stateRx:
@@ -93,7 +93,7 @@ func PrimaryRoutine() {
 
 }
 
-func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderAndId, hallBtnTx chan elevio.ButtonEvent, singleStateTx chan StateMsg) {
+func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderMsg, hallBtnTx chan elevio.ButtonEvent, singleStateTx chan StateMsg) {
 	// NETWORK CHANNELS (For all)
 
 	// Receive orders from master
@@ -108,7 +108,7 @@ func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderAndId, hal
 	// Role-specific logic
 	switch role {
 	case "Master":
-		hallOrderTx := make(chan HallOrderAndId)
+		hallOrderTx := make(chan HallOrderMsg)
 		go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
 
 		hallBtnRx := make(chan elevio.ButtonEvent)

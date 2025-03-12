@@ -78,9 +78,9 @@ func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 }
 
 func main() {
-	// Register Order{} and HallOrderAndId{} for serializing
+	// Register Order{} and HallOrderMsg{} for serializing
 	gob.Register(Order{})
-	gob.Register(HallOrderAndId{})
+	gob.Register(HallOrderMsg{})
 
 	// Section_START -- FLAGS
 	// Decide the port on which we are working (for the server) & the role of the elevator
@@ -99,7 +99,7 @@ func main() {
 
 	// Create the network channels for at the single-Elevator end
 	hallBtnTx := make(chan elevio.ButtonEvent)
-	hallOrderRx := make(chan HallOrderAndId)
+	hallOrderRx := make(chan HallOrderMsg)
 	singleStateTx := make(chan StateMsg)
 
 	// Initialize network (in communications.go)
@@ -195,15 +195,15 @@ func main() {
 
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-		case a := <-hallOrderRx: // Received an hallOrderAndId from the master
+		case a := <-hallOrderRx: // Received an HallOrderMsg from the master
 
 			// Deserialize the data
 			/*
-				var decodedOrder HallOrderAndId
+				var decodedOrder HallOrderMsg
 				b := bytes.NewBuffer(a) // serializedData should be received as bytes
 				dec := gob.NewDecoder(b)
 				if err := dec.Decode(&decodedOrder); err != nil {
-					fmt.Println("Error decoding HallOrderAndId:", err)
+					fmt.Println("Error decoding HallOrderMsg:", err)
 					return
 				}
 			*/
