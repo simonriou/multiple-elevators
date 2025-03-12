@@ -4,8 +4,9 @@ import (
 	"Driver-go/elevio"
 	"math"
 	"Network-go/network/bcast"
-	"Network-go/network/peers"
 	"fmt"
+	"encoding/gob"
+	"bytes"
 )
 
 type HRAInput struct {
@@ -14,8 +15,8 @@ type HRAInput struct {
 }
 
 type HallOrderAndId struct {
-	hallOrder Order
-	id        int
+	Id        int
+	HallOrder Order
 }
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hallOrderTx chan HallOrderAndId) {
@@ -23,34 +24,36 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
 	var allStates [numElev]ElevState
-	Uninitialized_ElevState := ElevState{
+	uninitializedOrderArray := []Order{
+		{
+			floor:     0,
+			direction: up,  // Replace with your OrderDirection constant (e.g., Up or Down)
+			orderType: hall, // Replace with your OrderType constant (e.g., Hall or Cab)
+		},
+	} 
+	uninitialized_ElevState := ElevState{
 		Behavior:  "Uninitialized",
 		Floor:     -2,
 		Direction: "Uninitialized",
-		Orders:    []Order{},
+		LocalRequests:    uninitializedOrderArray,
 	}
 
 	for i := range allStates {
-		allStates[i] = Uninitialized_ElevState
+		allStates[i] = uninitialized_ElevState
 	}
-
-	// Make functionality for peer-updates
-	peerUpdateCh := make(chan peers.PeerUpdate)     // Updates from peers
-	peerTxEnable := make(chan bool)                 // Enables/disables the transmitter
-	go peers.Transmitter(PeerChannel, role, peerTxEnable) // Broadcast role
-	go peers.Receiver(PeerChannel, peerUpdateCh)          // Listen for updates
 
 	for {
 		select {
 			case a := <-hallBtnRx:	
+				fmt.Printf("CodeExcecutionStart - hallBtnRx in MasterRoutine\n")
 				// Calculate the cost of assigning the order to each elevator
 				orderCosts := [numElev]float64{}
 
 				PrintButtonEvent(a)
 				for i, state := range allStates { // Assuming the elevators are sorted by ID inside of allStates
-					if state != Uninitialized_ElevState {
+					if state.Behavior != "Uninitialized" {
 						cost := calculateCost(state, btnPressToOrder(a))
-						fmt.Printf("The cost of assigning the hall order to elevator: %d, is: %f\n", i, cost)
+						fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
 						orderCosts[i] = cost
 					}
 				}
@@ -63,19 +66,27 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 					}
 				}
 
-				// Send the order to the best elevator
-				hallOrderTx <- HallOrderAndId{btnPressToOrder(a), bestElevator}
+				hallOrderAndId := HallOrderAndId{bestElevator, btnPressToOrder(a)}
+				fmt.Printf("HallOrderAndId sent: %v\n", HallOrderAndId{bestElevator, btnPressToOrder(a)})
 
+				// Serialize hallOrdersAndId using go
+				/*
+				var b bytes.Buffer
+				enc := gob.NewEncoder(&b)
+				if err := enc.Encode(hallOrderAndId); err != nil {
+					fmt.Println("Error encoding HallOrderAndId:", err)
+					return
+				}
+				// Send the serialized hallOrder over the channel
+				*/
+
+				hallOrderTx <- b
+
+				fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
 			case a := <-stateRx:
 				// Update our list of allStates with the new state
 
 				allStates[a.Id] = a.State
-				
-			case p := <-peerUpdateCh:
-				fmt.Printf("Peer update:\n")
-				fmt.Printf("  Peers:    %q\n", p.Peers)
-				fmt.Printf("  New:      %q\n", p.New)
-				fmt.Printf("  Lost:     %q\n", p.Lost)
 		}
 	}
 }
@@ -86,7 +97,7 @@ func PrimaryRoutine() {
 
 
 
-func InitializeNetwork(role string, id int, hallOrderRx chan Order, hallBtnTx chan elevio.ButtonEvent, singleStateTx chan StateMsg) {
+func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderAndId, hallBtnTx chan elevio.ButtonEvent, singleStateTx chan StateMsg) {
 	// NETWORK CHANNELS (For all)
 	
 
@@ -124,11 +135,11 @@ func InitializeNetwork(role string, id int, hallOrderRx chan Order, hallBtnTx ch
 func PrintButtonEvent(event elevio.ButtonEvent) {
 	var buttonType string
 	switch event.Button {
-	case BT_HallUp:
+	case elevio.BT_HallUp:
 		buttonType = "Hall Up"
-	case BT_HallDown:
+	case elevio.BT_HallDown:
 		buttonType = "Hall Down"
-	case BT_Cab:
+	case elevio.BT_Cab:
 		buttonType = "Cab"
 	default:
 		buttonType = "Unknown"

@@ -274,7 +274,6 @@ outerloop:
 			}
 			mutex_doors.Unlock()
 		}
-		fmt.Printf("Timer reads: %v\n", Timer)
 		time.Sleep(sleepDuration)
 	}
 }

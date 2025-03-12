@@ -2,12 +2,13 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"Network-go/network/bcast"
 	"Network-go/network/peers"
 	"flag"
 	"fmt"
 	"sync"
 	"time"
+	"encoding/gob"
+	"bytes"
 )
 
 const ( // Ports
@@ -19,7 +20,7 @@ const ( // Ports
 )
 
 const numFloors = 4 // Number of floors
-const numElev = 3   // Number of elevators
+const numElev = 2   // Number of elevators
 
 type ElevState struct { // Struct for the state of the elevator
 	Behavior      string  // 'moving' or 'idle'
@@ -78,6 +79,11 @@ func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 }
 
 func main() {
+	// Register Order{} and HallOrderAndId{} for serializing
+	gob.Register(Order{})
+    gob.Register(HallOrderAndId{})
+
+
 	// Section_START -- FLAGS
 	// Decide the port on which we are working (for the server) & the role of the elevator
 	port_raw := flag.String("port", "", "The port of the elevator client / server")
@@ -96,11 +102,17 @@ func main() {
 
 	// Create the network channels for at the single-Elevator end
 	hallBtnTx := make(chan elevio.ButtonEvent)
-	hallOrderRx := make(chan Order)
+	hallOrderRx := make(chan HallOrderAndId)
 	singleStateTx := make(chan StateMsg)
 
 	// Initialize network (in communications.go)
 	InitializeNetwork(role, id, hallOrderRx, hallBtnTx, singleStateTx)
+
+	// Make functionality for peer-updates
+	peerUpdateCh := make(chan peers.PeerUpdate)     // Updates from peers
+	peerTxEnable := make(chan bool)                 // Enables/disables the transmitter
+	go peers.Transmitter(PeerChannel, role, peerTxEnable) // Broadcast role
+	go peers.Receiver(PeerChannel, peerUpdateCh)          // Listen for updates
 
 	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
@@ -141,6 +153,7 @@ func main() {
 		turnOffLights(Order{0, -1, 0}, true)
 
 		updateState(&d, 0, elevatorOrders, &latestState)
+		singleStateTx <- StateMsg{id, latestState}
 
 		drv_finishedInitialization <- true
 	}()
@@ -186,12 +199,26 @@ func main() {
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 		case a := <-hallOrderRx: // Received an hallOrderAndId from the master
-			// Assumtion: Every single-Elevator will recieve this
-			if a.id == id {
-				newHallOrder := a.hallOrder
+
+			// Deserialize the data
+			/*
+			var decodedOrder HallOrderAndId
+			b := bytes.NewBuffer(a) // serializedData should be received as bytes
+			dec := gob.NewDecoder(b)
+			if err := dec.Decode(&decodedOrder); err != nil {
+				fmt.Println("Error decoding HallOrderAndId:", err)
+				return
+			}
+			*/
+
+			// Handle the hallOrder if the id's match
+			if a.Id == id {
+				fmt.Printf("The hallOrder was recieved on the hallbuttonPort\n")
+				newHallOrder := a.HallOrder
+				fmt.Printf("The new hallOrder is now: %v\n", newHallOrder)
 				lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-				addOrder(newHallOrder.Floor, newHallOrder.direction, hall) 
+				addOrder(newHallOrder.floor, newHallOrder.direction, hall) 
 				sortAllOrders(&elevatorOrders, d, posArray)
 				first_element := elevatorOrders[0]
 
@@ -243,6 +270,11 @@ func main() {
 				unlockMutexes(&mutex_doors)
 				fmt.Print("Obstruction off\n")
 			}
+		case p := <-peerUpdateCh:
+			fmt.Printf("Peer update:\n")
+			fmt.Printf("  Peers:    %q\n", p.Peers)
+			fmt.Printf("  New:      %q\n", p.New)
+			fmt.Printf("  Lost:     %q\n", p.Lost)
 		}
 
 	}
