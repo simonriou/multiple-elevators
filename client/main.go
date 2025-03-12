@@ -3,12 +3,11 @@ package main
 import (
 	"Driver-go/elevio"
 	"Network-go/network/peers"
+	"encoding/gob"
 	"flag"
 	"fmt"
 	"sync"
 	"time"
-	"encoding/gob"
-	"bytes"
 )
 
 const ( // Ports
@@ -81,8 +80,7 @@ func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 func main() {
 	// Register Order{} and HallOrderAndId{} for serializing
 	gob.Register(Order{})
-    gob.Register(HallOrderAndId{})
-
+	gob.Register(HallOrderAndId{})
 
 	// Section_START -- FLAGS
 	// Decide the port on which we are working (for the server) & the role of the elevator
@@ -99,7 +97,6 @@ func main() {
 	fmt.Printf("Id passed: %v\n", id)
 	// Section_END -- FLAGS
 
-
 	// Create the network channels for at the single-Elevator end
 	hallBtnTx := make(chan elevio.ButtonEvent)
 	hallOrderRx := make(chan HallOrderAndId)
@@ -109,8 +106,8 @@ func main() {
 	InitializeNetwork(role, id, hallOrderRx, hallBtnTx, singleStateTx)
 
 	// Make functionality for peer-updates
-	peerUpdateCh := make(chan peers.PeerUpdate)     // Updates from peers
-	peerTxEnable := make(chan bool)                 // Enables/disables the transmitter
+	peerUpdateCh := make(chan peers.PeerUpdate)           // Updates from peers
+	peerTxEnable := make(chan bool)                       // Enables/disables the transmitter
 	go peers.Transmitter(PeerChannel, role, peerTxEnable) // Broadcast role
 	go peers.Receiver(PeerChannel, peerUpdateCh)          // Listen for updates
 
@@ -179,21 +176,21 @@ func main() {
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 			switch {
-				case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
+			case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 
-					hallBtnTx <- a 
+				hallBtnTx <- a
 
-				case a.Button == elevio.BT_Cab: // Else (it's a cab)
+			case a.Button == elevio.BT_Cab: // Else (it's a cab)
 
-					addOrder(a.Floor, 0, cab) 
-					sortAllOrders(&elevatorOrders, d, posArray)
-					first_element := elevatorOrders[0]
+				addOrder(a.Floor, 0, cab)
+				sortAllOrders(&elevatorOrders, d, posArray)
+				first_element := elevatorOrders[0]
 
-					// Send the new state of the elevator to the master
-					updateState(&d, lastFloor, elevatorOrders, &latestState)
-					singleStateTx <- StateMsg{id, latestState}
+				// Send the new state of the elevator to the master
+				updateState(&d, lastFloor, elevatorOrders, &latestState)
+				singleStateTx <- StateMsg{id, latestState}
 
-					drv_newOrder <- first_element
+				drv_newOrder <- first_element
 			}
 
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
@@ -202,13 +199,13 @@ func main() {
 
 			// Deserialize the data
 			/*
-			var decodedOrder HallOrderAndId
-			b := bytes.NewBuffer(a) // serializedData should be received as bytes
-			dec := gob.NewDecoder(b)
-			if err := dec.Decode(&decodedOrder); err != nil {
-				fmt.Println("Error decoding HallOrderAndId:", err)
-				return
-			}
+				var decodedOrder HallOrderAndId
+				b := bytes.NewBuffer(a) // serializedData should be received as bytes
+				dec := gob.NewDecoder(b)
+				if err := dec.Decode(&decodedOrder); err != nil {
+					fmt.Println("Error decoding HallOrderAndId:", err)
+					return
+				}
 			*/
 
 			// Handle the hallOrder if the id's match
@@ -218,7 +215,7 @@ func main() {
 				fmt.Printf("The new hallOrder is now: %v\n", newHallOrder)
 				lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-				addOrder(newHallOrder.floor, newHallOrder.direction, hall) 
+				addOrder(newHallOrder.floor, newHallOrder.direction, hall)
 				sortAllOrders(&elevatorOrders, d, posArray)
 				first_element := elevatorOrders[0]
 

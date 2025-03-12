@@ -2,11 +2,9 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"math"
 	"Network-go/network/bcast"
 	"fmt"
-	"encoding/gob"
-	"bytes"
+	"math"
 )
 
 type HRAInput struct {
@@ -27,15 +25,15 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 	uninitializedOrderArray := []Order{
 		{
 			floor:     0,
-			direction: up,  // Replace with your OrderDirection constant (e.g., Up or Down)
+			direction: up,   // Replace with your OrderDirection constant (e.g., Up or Down)
 			orderType: hall, // Replace with your OrderType constant (e.g., Hall or Cab)
 		},
-	} 
+	}
 	uninitialized_ElevState := ElevState{
-		Behavior:  "Uninitialized",
-		Floor:     -2,
-		Direction: "Uninitialized",
-		LocalRequests:    uninitializedOrderArray,
+		Behavior:      "Uninitialized",
+		Floor:         -2,
+		Direction:     "Uninitialized",
+		LocalRequests: uninitializedOrderArray,
 	}
 
 	for i := range allStates {
@@ -44,33 +42,33 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 
 	for {
 		select {
-			case a := <-hallBtnRx:	
-				fmt.Printf("CodeExcecutionStart - hallBtnRx in MasterRoutine\n")
-				// Calculate the cost of assigning the order to each elevator
-				orderCosts := [numElev]float64{}
+		case a := <-hallBtnRx:
+			fmt.Printf("CodeExcecutionStart - hallBtnRx in MasterRoutine\n")
+			// Calculate the cost of assigning the order to each elevator
+			orderCosts := [numElev]float64{}
 
-				PrintButtonEvent(a)
-				for i, state := range allStates { // Assuming the elevators are sorted by ID inside of allStates
-					if state.Behavior != "Uninitialized" {
-						cost := calculateCost(state, btnPressToOrder(a))
-						fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
-						orderCosts[i] = cost
-					}
+			PrintButtonEvent(a)
+			for i, state := range allStates { // Assuming the elevators are sorted by ID inside of allStates
+				if state.Behavior != "Uninitialized" {
+					cost := calculateCost(state, btnPressToOrder(a))
+					fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
+					orderCosts[i] = cost
 				}
+			}
 
-				// Find the elevator with the lowest cost
-				bestElevator := 0 // Id of the best elevator
-				for i, cost := range orderCosts {
-					if cost < orderCosts[bestElevator] {
-						bestElevator = i
-					}
+			// Find the elevator with the lowest cost
+			bestElevator := 0 // Id of the best elevator
+			for i, cost := range orderCosts {
+				if cost < orderCosts[bestElevator] {
+					bestElevator = i
 				}
+			}
 
-				hallOrderAndId := HallOrderAndId{bestElevator, btnPressToOrder(a)}
-				fmt.Printf("HallOrderAndId sent: %v\n", HallOrderAndId{bestElevator, btnPressToOrder(a)})
+			hallOrderAndId := HallOrderAndId{bestElevator, btnPressToOrder(a)}
+			fmt.Printf("HallOrderAndId sent: %v\n", HallOrderAndId{bestElevator, btnPressToOrder(a)})
 
-				// Serialize hallOrdersAndId using go
-				/*
+			// Serialize hallOrdersAndId using go
+			/*
 				var b bytes.Buffer
 				enc := gob.NewEncoder(&b)
 				if err := enc.Encode(hallOrderAndId); err != nil {
@@ -78,15 +76,15 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 					return
 				}
 				// Send the serialized hallOrder over the channel
-				*/
+			*/
 
-				hallOrderTx <- b
+			hallOrderTx <- b
 
-				fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
-			case a := <-stateRx:
-				// Update our list of allStates with the new state
+			fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
+		case a := <-stateRx:
+			// Update our list of allStates with the new state
 
-				allStates[a.Id] = a.State
+			allStates[a.Id] = a.State
 		}
 	}
 }
@@ -95,11 +93,8 @@ func PrimaryRoutine() {
 
 }
 
-
-
 func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderAndId, hallBtnTx chan elevio.ButtonEvent, singleStateTx chan StateMsg) {
 	// NETWORK CHANNELS (For all)
-	
 
 	// Receive orders from master
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
@@ -113,7 +108,6 @@ func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderAndId, hal
 	// Role-specific logic
 	switch role {
 	case "Master":
-
 		hallOrderTx := make(chan HallOrderAndId)
 		go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
 
@@ -129,8 +123,6 @@ func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderAndId, hal
 	}
 	fmt.Println("Network initialized.")
 }
-
-
 
 func PrintButtonEvent(event elevio.ButtonEvent) {
 	var buttonType string
