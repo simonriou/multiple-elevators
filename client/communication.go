@@ -75,8 +75,15 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
 		case a := <-singleStateRx:
 			// Update our list of allStates with the new state
-
 			allStates[a.Id] = a.State
+
+			// Send the list of states to the backup along with their id
+			statesToSend := [numElev]StateMsg{}
+			for i, state := range allStates {
+				statesToSend[i] = StateMsg{i, state}
+			}
+
+			allStatesTx <- statesToSend
 		}
 	}
 }
