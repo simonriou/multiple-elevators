@@ -3,7 +3,6 @@ package main
 import (
 	"Driver-go/elevio"
 	"Network-go/network/peers"
-	"encoding/gob"
 	"flag"
 	"fmt"
 	"sync"
@@ -14,7 +13,7 @@ const ( // Ports
 	HallOrder_PORT = 16120 + iota
 	HallOrderRawBTN_PORT
 	SingleElevatorState_PORT
-	AllStatesPort
+	AllElevatorStates_PORT
 	PeerChannel
 )
 
@@ -77,11 +76,32 @@ func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
 	}
 }
 
-func main() {
-	// Register Order{} and HallOrderMsg{} for serializing
-	gob.Register(Order{})
-	gob.Register(HallOrderMsg{})
+func initSingleElev(d elevio.MotorDirection, id int, singleStateTx chan StateMsg, drv_FinishedInitialization chan bool, drv_floors chan int) {
+	go func() {
+		elevio.SetMotorDirection(d)
+		for {
+			a := <-drv_floors
+			if a == 0 {
+				d = elevio.MD_Stop
+				elevio.SetMotorDirection(d)
+				break
+			}
+		}
+		ableToCloseDoors = true
+		turnOffLights(Order{0, -1, 0}, true)
 
+		updateState(&d, 0, elevatorOrders, &latestState)
+		singleStateTx <- StateMsg{id, latestState}
+
+		drv_FinishedInitialization <- true
+	}()
+
+	<-drv_FinishedInitialization
+
+	fmt.Printf("Initialization finished\n")
+}
+
+func main() {
 	// Section_START -- FLAGS
 	// Decide the port on which we are working (for the server) & the role of the elevator
 	port_raw := flag.String("port", "", "The port of the elevator client / server")
@@ -99,11 +119,23 @@ func main() {
 
 	// Create the network channels for at the single-Elevator end
 	hallBtnTx := make(chan elevio.ButtonEvent)
+	hallBtnRx := make(chan elevio.ButtonEvent)
+
 	hallOrderRx := make(chan HallOrderMsg)
+	hallOrderTx := make(chan HallOrderMsg)
+
 	singleStateTx := make(chan StateMsg)
+	singleStateRx := make(chan StateMsg)
+
+	allStatesRx := make(chan [numElev]StateMsg)
+	allStatesTx := make(chan [numElev]StateMsg)
 
 	// Initialize network (in communications.go)
-	InitializeNetwork(role, id, hallOrderRx, hallBtnTx, singleStateTx)
+	InitializeNetwork(role, id,
+		hallOrderRx, hallOrderTx,
+		hallBtnRx, hallBtnTx,
+		singleStateRx, singleStateTx,
+		allStatesRx, allStatesTx)
 
 	// Make functionality for peer-updates
 	peerUpdateCh := make(chan peers.PeerUpdate)           // Updates from peers
@@ -134,32 +166,7 @@ func main() {
 
 	var d elevio.MotorDirection = elevio.MD_Down
 
-	// Section_START ---- Initialization
-
-	go func() {
-		elevio.SetMotorDirection(d)
-		for {
-			a := <-drv_floors
-			if a == 0 {
-				d = elevio.MD_Stop
-				elevio.SetMotorDirection(d)
-				break
-			}
-		}
-		ableToCloseDoors = true
-		turnOffLights(Order{0, -1, 0}, true)
-
-		updateState(&d, 0, elevatorOrders, &latestState)
-		singleStateTx <- StateMsg{id, latestState}
-
-		drv_finishedInitialization <- true
-	}()
-
-	<-drv_finishedInitialization
-
-	fmt.Printf("Initialization finished\n")
-
-	// Section_END ---- Initialization
+	initSingleElev(d, id, singleStateTx, drv_finishedInitialization, drv_floors3)
 
 	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
@@ -167,7 +174,6 @@ func main() {
 
 	for { // Main loop
 		select { // Select statement
-
 		case a := <-drv_buttons: // New button update
 			// Gets a new button press. If it's a hall order, forwards it to the master
 
@@ -196,17 +202,6 @@ func main() {
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 		case a := <-hallOrderRx: // Received an HallOrderMsg from the master
-
-			// Deserialize the data
-			/*
-				var decodedOrder HallOrderMsg
-				b := bytes.NewBuffer(a) // serializedData should be received as bytes
-				dec := gob.NewDecoder(b)
-				if err := dec.Decode(&decodedOrder); err != nil {
-					fmt.Println("Error decoding HallOrderMsg:", err)
-					return
-				}
-			*/
 
 			// Handle the hallOrder if the id's match
 			if a.Id == id {
@@ -272,6 +267,12 @@ func main() {
 			fmt.Printf("  Peers:    %q\n", p.Peers)
 			fmt.Printf("  New:      %q\n", p.New)
 			fmt.Printf("  Lost:     %q\n", p.Lost)
+
+			switch {
+			case len(p.Lost) > 0:
+				role = decideNewRoleLoss(role, p.Peers) // From handleNetworkChange.go
+				startRoutine(role, hallBtnRx, singleStateRx, hallOrderTx, allStatesTx)
+			}
 		}
 
 	}

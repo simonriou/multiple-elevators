@@ -17,7 +17,10 @@ type HallOrderMsg struct {
 	HallOrder Order
 }
 
-func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hallOrderTx chan HallOrderMsg) {
+func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg, allStatesTx chan [numElev]StateMsg) {
+	// Chan hallOrder Tx
+	// chan hallbtn Rx
+	//
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -67,21 +70,10 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, stateRx chan StateMsg, hal
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 			fmt.Printf("HallOrderMsg sent: %v\n", HallOrderMessage)
 
-			// Serialize hallOrdersAndId using go
-			/*
-				var b bytes.Buffer
-				enc := gob.NewEncoder(&b)
-				if err := enc.Encode(HallOrderMsg); err != nil {
-					fmt.Println("Error encoding HallOrderMsg:", err)
-					return
-				}
-				// Send the serialized hallOrder over the channel
-			*/
-
 			hallOrderTx <- HallOrderMessage
 
 			fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
-		case a := <-stateRx:
+		case a := <-singleStateRx:
 			// Update our list of allStates with the new state
 
 			allStates[a.Id] = a.State
@@ -93,7 +85,11 @@ func PrimaryRoutine() {
 
 }
 
-func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderMsg, hallBtnTx chan elevio.ButtonEvent, singleStateTx chan StateMsg) {
+func InitializeNetwork(role string, id int,
+	hallOrderRx chan HallOrderMsg, hallOrderTx chan HallOrderMsg,
+	hallBtnRx chan elevio.ButtonEvent, hallBtnTx chan elevio.ButtonEvent,
+	singleStateRx chan StateMsg, singleStateTx chan StateMsg,
+	allStatesRx chan [numElev]StateMsg, allStatesTx chan [numElev]StateMsg) {
 	// NETWORK CHANNELS (For all)
 
 	// Receive orders from master
@@ -108,18 +104,18 @@ func InitializeNetwork(role string, id int, hallOrderRx chan HallOrderMsg, hallB
 	// Role-specific logic
 	switch role {
 	case "Master":
-		hallOrderTx := make(chan HallOrderMsg)
-		go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
+		go bcast.Transmitter(HallOrder_PORT, hallOrderTx) // Transmit orders to slaves
 
-		hallBtnRx := make(chan elevio.ButtonEvent)
-		go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
+		go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx) // Receive raw hall buttons from slaves
 
-		singleStateRx := make(chan StateMsg)
-		go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
+		go bcast.Receiver(SingleElevatorState_PORT, singleStateRx) // Receive elevator states from slaves
 
-		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx)
+		go bcast.Transmitter(AllElevatorStates_PORT, allStatesTx) // Transmit all elevator states to backup
+
+		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, allStatesTx)
 	case "Primary":
 		// Placeholder for Primary-specific logic
+		go bcast.Receiver(AllElevatorStates_PORT, allStatesRx) // Receive all elevator states from backup
 	}
 	fmt.Println("Network initialized.")
 }
