@@ -12,7 +12,7 @@ func btnPressToOrder(btn elevio.ButtonEvent) Order { // Convert a button press t
 	if btn.Button == elevio.BT_HallDown {
 		orderDirection = down
 	}
-	return Order{floor: btn.Floor, direction: orderDirection, orderType: orderType}
+	return Order{Floor: btn.Floor, Direction: orderDirection, OrderType: orderType}
 }
 
 func determineBehaviour(d *elevio.MotorDirection) string { // Determine the behaviour of the elevator based on its direction
@@ -51,14 +51,14 @@ func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights
 	switch {
 	case !allFloors:
 		// Turn off the button lamp at the current floor
-		if current_order.orderType == hall { // Hall button
-			if current_order.direction == up { // Hall up
-				elevio.SetButtonLamp(elevio.BT_HallUp, current_order.floor, false)
+		if current_order.OrderType == hall { // Hall button
+			if current_order.Direction == up { // Hall up
+				elevio.SetButtonLamp(elevio.BT_HallUp, current_order.Floor, false)
 			} else { // Hall down
-				elevio.SetButtonLamp(elevio.BT_HallDown, current_order.floor, false)
+				elevio.SetButtonLamp(elevio.BT_HallDown, current_order.Floor, false)
 			}
 		} else { // Cab button
-			elevio.SetButtonLamp(elevio.BT_Cab, current_order.floor, false)
+			elevio.SetButtonLamp(elevio.BT_Cab, current_order.Floor, false)
 		}
 
 	case allFloors:
@@ -153,7 +153,7 @@ func printOrders(orders []Order) {
 	// Iterate through each order and print its details
 	for i, order := range orders {
 		fmt.Printf("Order #%d: Floor %d, Direction %s, OrderType %s\n",
-			i+1, order.floor, directionToString(order.direction), orderTypeToString(order.orderType))
+			i+1, order.Floor, directionToString(order.Direction), orderTypeToString(order.OrderType))
 	}
 }
 
@@ -203,20 +203,20 @@ func addOrder(floor int, direction OrderDirection, typeOrder OrderType) { // Add
 
 	if typeOrder == cab {
 		for _, order := range elevatorOrders {
-			if order.floor == floor && order.orderType == cab {
+			if order.Floor == floor && order.OrderType == cab {
 				exists = true
 			}
 		}
 	} else if typeOrder == hall {
 		for _, order := range elevatorOrders {
-			if order.floor == floor && order.direction == direction && order.orderType == hall {
+			if order.Floor == floor && order.Direction == direction && order.OrderType == hall {
 				exists = true
 			}
 		}
 	}
 
 	if !exists {
-		elevatorOrders = append(elevatorOrders, Order{floor: floor, direction: direction, orderType: typeOrder})
+		elevatorOrders = append(elevatorOrders, Order{Floor: floor, Direction: direction, OrderType: typeOrder})
 	}
 }
 
@@ -226,12 +226,12 @@ func addOrder(floor int, direction OrderDirection, typeOrder OrderType) { // Add
 func PopOrders() {
 	//fmt.Printf("Before deleting orders from elevatorOrders: %v\n", elevatorOrders)
 	if len(elevatorOrders) != 0 {
-		floor_to_pop := elevatorOrders[0].floor
+		floor_to_pop := elevatorOrders[0].Floor
 
 		// Figure out how many elements to delete
 		ndelete := 0
 		for _, order := range elevatorOrders {
-			if order.floor == floor_to_pop {
+			if order.Floor == floor_to_pop {
 				ndelete += 1
 			} else {
 				break
@@ -246,11 +246,11 @@ func PopOrders() {
 
 func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order, current_floor float32) { // Change the direction based on the current order
 	switch {
-	case current_floor > float32(current_order.floor):
+	case current_floor > float32(current_order.Floor):
 		*d = elevio.MD_Down
-	case current_floor < float32(current_order.floor):
+	case current_floor < float32(current_order.Floor):
 		*d = elevio.MD_Up
-	case current_floor == float32(current_order.floor):
+	case current_floor == float32(current_order.Floor):
 		*d = elevio.MD_Stop
 	}
 }
@@ -278,14 +278,26 @@ outerloop:
 	}
 }
 
+func relay(source chan int, consumers ...chan int) {
+	for {
+		value := <- source
+        for _, consumer := range consumers {
+            consumer <- value // Send to each consumer
+        }
+    }
+}
+	
+
+
 // This function will attend to the current order, it
-func attendToSpecificOrder(d *elevio.MotorDirection, drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection) {
+func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection) {
 	current_order := Order{0, -1, 0}
 	for {
 		select {
-		case a := <-drv_floors: // Triggers when we arrive at a new floor
+		case a := <- consumer2drv_floors: // Triggers when we arrive at a new floor
+			fmt.Printf("Reached drv_floors in attendtoSpecific: %v\n", a)
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
-			if a == current_order.floor { // Check if our new floor is equal to the floor of the order
+			if a == current_order.Floor { // Check if our new floor is equal to the floor of the order
 				// Set direction to stop and delete relevant orders from elevatorOrders
 
 				*d = elevio.MD_Stop
@@ -320,13 +332,14 @@ func attendToSpecificOrder(d *elevio.MotorDirection, drv_floors chan int, drv_ne
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
+			fmt.Println("New order: ", a)
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 
 			current_order = a
 			current_position := extractPos()
 			switch {
 			// Case 1: HandleOrders sent a new Order and it is at the same floor
-			case *d == elevio.MD_Stop && current_position == float32(current_order.floor):
+			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
 				fmt.Printf("HandleOrders sent a new Order and it is at the same floor\n")
 
 				turnOffLights(current_order, false)
@@ -341,7 +354,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, drv_floors chan int, drv_ne
 				if len(elevatorOrders) != 0 {
 					current_order = elevatorOrders[0]
 					prev_direction := *d
-					changeDirBasedOnCurrentOrder(d, current_order, float32(current_order.floor))
+					changeDirBasedOnCurrentOrder(d, current_order, float32(current_order.Floor))
 					new_direction := *d
 
 					elevio.SetMotorDirection(*d)
@@ -357,7 +370,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, drv_floors chan int, drv_ne
 				}
 
 				// Case 2: HandleOrders sent a new Order and it is at a different floor
-			case current_position != float32(current_order.floor):
+			case current_position != float32(current_order.Floor):
 				current_position := extractPos()
 
 				prev_direction := *d
@@ -378,5 +391,6 @@ func attendToSpecificOrder(d *elevio.MotorDirection, drv_floors chan int, drv_ne
 
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		}
+		fmt.Println("Looping specific order")
 	}
 }

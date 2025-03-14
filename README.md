@@ -1,8 +1,7 @@
 Multiple elevators
 ======================
 
-Latest update: March, 13th
-Priority: Initialize network manually so that it is clear what happens when we launch a new elevator after a shutdown.
+Latest update: March, 10th
 
 ---
 

@@ -35,26 +35,26 @@ const (
 )
 
 type Order struct {
-	floor     int
-	direction OrderDirection // 1 for up, -1 for down
-	orderType OrderType      // 0 for hall, 1 for cab
+	Floor     int
+	Direction OrderDirection // 1 for up, -1 for down
+	OrderType OrderType      // 0 for hall, 1 for cab
 }
 
 // end Region: Data types for the orders
 
 func findHighestOrders(elevatorOrders []Order) []Order {
-	// Set the initial highest floor to a very low value
+	// Set the initial highest Floor to a very low value
 	highestFloor := -1
 	var highestOrders []Order
 
-	// Loop through each order to find the highest floor
+	// Loop through each order to find the highest Floor
 	for _, order := range elevatorOrders {
-		if order.floor > highestFloor {
-			// If we find a higher floor, reset the slice and add the current order
-			highestFloor = order.floor
+		if order.Floor > highestFloor {
+			// If we find a higher Floor, reset the slice and add the current order
+			highestFloor = order.Floor
 			highestOrders = []Order{order}
-		} else if order.floor == highestFloor {
-			// If the floor matches the current highest, add it to the slice
+		} else if order.Floor == highestFloor {
+			// If the Floor matches the current highest, add it to the slice
 			highestOrders = append(highestOrders, order)
 		}
 	}
@@ -63,18 +63,18 @@ func findHighestOrders(elevatorOrders []Order) []Order {
 }
 
 func findLowestOrders(elevatorOrders []Order) []Order {
-	// Set the initial lowest floor to a very high value
+	// Set the initial lowest Floor to a very high value
 	lowestFloor := 1000000
 	var lowestOrders []Order
 
-	// Loop through each order to find the lowest floor
+	// Loop through each order to find the lowest Floor
 	for _, order := range elevatorOrders {
-		if order.floor < lowestFloor {
-			// If we find a lower floor, reset the slice and add the current order
-			lowestFloor = order.floor
+		if order.Floor < lowestFloor {
+			// If we find a lower Floor, reset the slice and add the current order
+			lowestFloor = order.Floor
 			lowestOrders = []Order{order}
-		} else if order.floor == lowestFloor {
-			// If the floor matches the current lowest, add it to the slice
+		} else if order.Floor == lowestFloor {
+			// If the Floor matches the current lowest, add it to the slice
 			lowestOrders = append(lowestOrders, order)
 		}
 	}
@@ -96,7 +96,7 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 	highestOrders := findHighestOrders(elevatorOrders)
 	lowestOrders := findLowestOrders(elevatorOrders)
 
-	//Calculating the current floor as a decimal so that its compareable to
+	//Calculating the current Floor as a decimal so that its compareable to
 	currentFloor := float32(0)
 	for i := 0; i < 2*numFloors-1; i++ {
 		if posArray[i] {
@@ -106,14 +106,14 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 
 	// Section_START handle d==MD_Stop
 	if d == elevio.MD_Stop {
-		// Find direction based on cab order
+		// Find Direction based on cab order
 		num_cabOrdersAbove := 0
 		num_cabOrdersBelow := 0
 		closest := Order{100000, 1, 1}
 
 		for _, order := range elevatorOrders {
-			floor_order := float32(order.floor)
-			if math.Abs(float64(currentFloor)-float64(order.floor)) < float64(closest.floor) {
+			floor_order := float32(order.Floor)
+			if math.Abs(float64(currentFloor)-float64(order.Floor)) < float64(closest.Floor) {
 				closest = order
 			}
 			switch {
@@ -130,7 +130,7 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 		case num_cabOrdersAbove < num_cabOrdersBelow:
 			d = elevio.MD_Down
 		case num_cabOrdersAbove == num_cabOrdersBelow:
-			if float32(closest.floor) > float32(currentFloor) {
+			if float32(closest.Floor) > float32(currentFloor) {
 				d = elevio.MD_Up
 			} else {
 				d = elevio.MD_Down
@@ -140,7 +140,7 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 
 	// Section_END handle d==MD_Stop
 
-	//Based current direction => find all the equidirectional orders plus potential extremities
+	//Based current Direction => find all the equiDirectional orders plus potential extremities
 	//Store the relevant orders in relevantOrders and the rest in irrelevantOrders
 	relevantOrders := []Order{}
 	irrelevantOrders := []Order{}
@@ -151,17 +151,17 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 
 		//We define a variable for measuring the distance between current_pos and order.
 		//Positive -> The order is above us
-		//Zero     -> The order is at the same floor
+		//Zero     -> The order is at the same Floor
 		//Negative -> The order is below us
-		distOrderToCurrent := float32(order.floor) - currentFloor
+		distOrderToCurrent := float32(order.Floor) - currentFloor
 		switch {
 		case (d == elevio.MD_Up) && (distOrderToCurrent >= 0.0): //If we're going up and the order is above/same
 			switch {
 			case inHighest:
 				relevantOrders = append(relevantOrders, order)
-			case order.direction == up || order.orderType == cab:
+			case order.Direction == up || order.OrderType == cab:
 				relevantOrders = append(relevantOrders, order)
-			case order.direction == down:
+			case order.Direction == down:
 				irrelevantOrders = append(irrelevantOrders, order)
 			}
 		case (d == elevio.MD_Up) && (distOrderToCurrent < 0.0): //If we're going up and the order is below/same
@@ -172,9 +172,9 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 			switch {
 			case inLowest:
 				relevantOrders = append(relevantOrders, order)
-			case order.direction == down || order.orderType == cab:
+			case order.Direction == down || order.OrderType == cab:
 				relevantOrders = append(relevantOrders, order)
-			case order.direction == up:
+			case order.Direction == up:
 				irrelevantOrders = append(irrelevantOrders, order)
 			}
 		case (d == elevio.MD_Down) && (distOrderToCurrent > 0.0): //If we're going down and the order is up/same
@@ -184,13 +184,13 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 	}
 
 	//Now that we've seperated the relevant and irrellevant orders from each other, we sort the relevant part
-	//If the current direction is up, we sort them in ascending order
+	//If the current Direction is up, we sort them in ascending order
 	if d == elevio.MD_Up {
 		n := len(relevantOrders)
 		for i := 0; i < n-1; i++ {
 			// Last i elements are already sorted
 			for j := 0; j < n-i-1; j++ {
-				if relevantOrders[j].floor > relevantOrders[j+1].floor {
+				if relevantOrders[j].Floor > relevantOrders[j+1].Floor {
 					// Swap arr[j] and arr[j+1]
 					relevantOrders[j], relevantOrders[j+1] = relevantOrders[j+1], relevantOrders[j]
 				}
@@ -198,14 +198,14 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 		}
 	}
 
-	//If the current direction is down, we sort them in descending order
+	//If the current Direction is down, we sort them in descending order
 	if d == elevio.MD_Down {
 		//Perform bubblesort in descending order
 		n := len(relevantOrders)
 		for i := 0; i < n-1; i++ {
 			// Last i elements are already sorted
 			for j := 0; j < n-i-1; j++ {
-				if relevantOrders[j].floor < relevantOrders[j+1].floor {
+				if relevantOrders[j].Floor < relevantOrders[j+1].Floor {
 					// Swap arr[j] and arr[j+1]
 					relevantOrders[j], relevantOrders[j+1] = relevantOrders[j+1], relevantOrders[j]
 				}
@@ -221,7 +221,7 @@ func sortAllOrders(elevatorOrders *[]Order, d elevio.MotorDirection, posArray [2
 		return
 	}
 
-	// Handle that rare case where the motordirection is MD_Stop and we have multiple orders
+	// Handle that rare case where the motorDirection is MD_Stop and we have multiple orders
 
 	// fmt.Printf("Made it past the inital checks in sortAllOrders\n")
 
