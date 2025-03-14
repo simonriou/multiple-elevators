@@ -1,12 +1,12 @@
 Multiple elevators
 ======================
 
-Latest update: March, 10th
+Latest update: March, 14th
+Fixed handling of the connections between master and slaves
 
 ---
 
 To-Do List:
-- Finish handling connections between the elevators
-- Make the logic for the master elevator to select one elevator for a job
-- Handle the backup part (primary backup storing data)
-- Handle the roles change in case of a shutdown
+- Test / Debug the backup part (primary backup storing data)
+- Test / Debug the roles change in case of a shutdown
+- Fix a few bugs (doors lights are delayed when reaching a floor)
