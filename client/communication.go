@@ -17,12 +17,12 @@ type HallOrderMsg struct {
 	HallOrder Order
 }
 
-func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg, AllStatesTx chan [numElev]ElevState) {
+func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg, allStatesTx chan [numElev]ElevState) {
 
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
-	go bcast.Transmitter(AllStates_PORT, AllStatesTx)
+	go bcast.Transmitter(AllStates_PORT, allStatesTx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -45,14 +45,36 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 		allStates[i] = uninitialized_ElevState
 	}
 
+	// SectionStart - Info regarding hallOrders
+	type hallOrderTimer struct {
+		activeHallOrder Order
+		activeId        int
+		timeSinceSent   int
+	}
+	hallOrderTimers := []hallOrderTimer{}
+
+	// SectionEnd - Info regarding hallOrders
+
 	for {
 		select {
 		case a := <-hallBtnRx:
+
+			// Retrieves the information on the working elevators
+			workingElevNb := len(activeElevators)
+			workingElevs := make([]ElevState, workingElevNb)
+			// Remember which index coresponds to which elevator id
+			// This is important for sending the hall order to the correct elevator
+			indexMapping := []int{} // Contains the id of the working elevators in the order they are in workingElevs
+			for i, id := range activeElevators {
+				workingElevs[i] = allStates[id]
+				indexMapping = append(indexMapping, id)
+			}
+
 			// Calculate the cost of assigning the order to each elevator
 			orderCosts := [numElev]float64{}
 
 			PrintButtonEvent(a)
-			for i, state := range allStates { // Assuming the elevators are sorted by ID inside of allStates
+			for i, state := range workingElevs {
 				if state.Behavior != "Uninitialized" {
 					cost := calculateCost(state, btnPressToOrder(a))
 					fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
@@ -61,21 +83,31 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			}
 
 			// Find the elevator with the lowest cost
-			bestElevator := 0 // Id of the best elevator
+			bestElevator := 0 // Id of the best elevator (relative to workingElevs)
 			for i, cost := range orderCosts {
 				if cost < orderCosts[bestElevator] {
 					bestElevator = i
 				}
 			}
 
+			// Retrieve the id of the best elevator (relative to allStates)
+			bestElevator = indexMapping[bestElevator]
+
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 
+			// Send the order to a slave
 			hallOrderTx <- HallOrderMessage
+
+			// Add the active order in hallOrderTimers
+			timerHallOrder := hallOrderTimer{activeHallOrder: btnPressToOrder(a), activeId: bestElevator, timeSinceSent: 0}
+			hallOrderTimers = append(hallOrderTimers, timerHallOrder)
 
 		case a := <-singleStateRx:
 			// Update our list of allStates with the new state
-
 			allStates[a.Id] = a.State
+
+			// Send the new states list to the primary backup
+			allStatesTx <- allStates
 		}
 	}
 }

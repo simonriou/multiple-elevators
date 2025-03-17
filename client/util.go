@@ -2,9 +2,42 @@ package main
 
 import (
 	"Driver-go/elevio"
+	"Network-go/network/peers"
+	"encoding/json"
 	"fmt"
 	"time"
 )
+
+func isElevatorActive(elevatorId int) bool {
+	// Check if the elevator is active
+	for _, id := range activeElevators {
+		if id == elevatorId {
+			return true
+		}
+	}
+	return false
+}
+
+func removeElevator(elevatorId int) {
+	// Removes the id of the elevator from the list of active elevators
+	for i, id := range activeElevators {
+		if id == elevatorId {
+			mutex_activeElevators.Lock()
+			activeElevators = append(activeElevators[:i], activeElevators[i+1:]...)
+			mutex_activeElevators.Unlock()
+			break // Exit to avoid issues with changed indices (works because ids are unique)
+		}
+	}
+}
+
+func stringToElevIdentity(data string) peers.ElevIdentity { // Convert a string to an ElevIdentity struct
+	var msg peers.ElevIdentity
+	err := json.Unmarshal([]byte(data), &msg)
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
+	return msg
+}
 
 func btnPressToOrder(btn elevio.ButtonEvent) Order { // Convert a button press to an order for hall orders
 	orderType := hall
@@ -280,21 +313,19 @@ outerloop:
 
 func relay(source chan int, consumers ...chan int) {
 	for {
-		value := <- source
-        for _, consumer := range consumers {
-            consumer <- value // Send to each consumer
-        }
-    }
+		value := <-source
+		for _, consumer := range consumers {
+			consumer <- value // Send to each consumer
+		}
+	}
 }
-	
-
 
 // This function will attend to the current order, it
 func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection) {
 	current_order := Order{0, -1, 0}
 	for {
 		select {
-		case a := <- consumer2drv_floors: // Triggers when we arrive at a new floor
+		case a := <-consumer2drv_floors: // Triggers when we arrive at a new floor
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 			if a == current_order.Floor { // Check if our new floor is equal to the floor of the order
 				// Set direction to stop and delete relevant orders from elevatorOrders

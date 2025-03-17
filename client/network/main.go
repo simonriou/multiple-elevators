@@ -12,7 +12,8 @@ import (
 
 // We define some custom struct to send over the network.
 // Note that all members we want to transmit must be public. Any private members
-//  will be received as zero-values.
+//
+//	will be received as zero-values.
 type HelloMsg struct {
 	Message string
 	Iter    int
@@ -43,7 +44,7 @@ func main() {
 	// We can disable/enable the transmitter after it has been started.
 	// This could be used to signal that we are somehow "unavailable".
 	peerTxEnable := make(chan bool)
-	go peers.Transmitter(15647, id, peerTxEnable)
+	go peers.Transmitter(15647, peers.ElevIdentity{}, peerTxEnable)
 	go peers.Receiver(15647, peerUpdateCh)
 
 	// We make channels for sending and receiving our custom data types
