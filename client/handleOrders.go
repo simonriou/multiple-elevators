@@ -5,43 +5,6 @@ import (
 	"math"
 )
 
-type ButtonType int
-
-const (
-	BT_HallUp   ButtonType = 0
-	BT_HallDown            = 1
-	BT_Cab                 = 2
-)
-
-type ButtonEvent struct {
-	Floor  int
-	Button ButtonType
-}
-
-// Region: Data types for the orders
-
-type OrderDirection int
-
-const (
-	up   OrderDirection = 1
-	down OrderDirection = -1
-)
-
-type OrderType int
-
-const (
-	hall OrderType = 0
-	cab  OrderType = 1
-)
-
-type Order struct {
-	Floor     int
-	Direction OrderDirection // 1 for up, -1 for down
-	OrderType OrderType      // 0 for hall, 1 for cab
-}
-
-// end Region: Data types for the orders
-
 func findHighestOrders(elevatorOrders []Order) []Order {
 	// Set the initial highest Floor to a very low value
 	highestFloor := -1

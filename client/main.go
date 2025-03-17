@@ -4,129 +4,19 @@ import (
 	"Driver-go/elevio"
 	"Network-go/network/bcast"
 	"Network-go/network/peers"
-	"flag"
 	"fmt"
-	"sync"
 	"time"
-)
-
-const ( // Ports
-	HallOrder_PORT = 16120 + iota
-	HallOrderRawBTN_PORT
-	SingleElevatorState_PORT
-	AllStates_PORT
-	PeerChannel_PORT
 )
 
 const numFloors = 4 // Number of floors
 const numElev = 2   // Number of elevators
 
-type ElevState struct { // Struct for the state of the elevator
-	Behavior      string  // 'moving' or 'idle'
-	Floor         int     // The floor the elevator is at
-	Direction     string  // 'up', 'down' or 'stop'
-	LocalRequests []Order // The requests of the elevator
-}
-
-type StateMsg struct { // Structure used to send our state to the master
-	Id    int
-	State ElevState
-}
-
-var (
-	elevatorOrders       []Order // The local orders array for this elevator
-	mutex_elevatorOrders sync.Mutex
-)
-
-var (
-	posArray       [2*numFloors - 1]bool // The position array for this elevator
-	mutex_posArray sync.Mutex
-)
-
-var (
-	ableToCloseDoors bool // A boolean that tells us if we are able to close the doors
-	mutex_doors      sync.Mutex
-)
-
-var (
-	role string // The role of the elevator (Master, Slave or PrimaryBackup)
-)
-
-var (
-	lastFloor int // The last floor the elevator was at
-)
-
-var (
-	latestState ElevState // The latest state of the elevator
-	mutex_state sync.Mutex
-)
-
-var (
-	activeElevators       []int
-	mutex_activeElevators sync.Mutex
-)
-
-var mutex_d sync.Mutex // Mutex for the direction of the elevator
-
-var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
-
-func lockMutexes(mutexes ...*sync.Mutex) { // Locks multiple mutexes
-	for _, m := range mutexes {
-		m.Lock()
-	}
-}
-
-func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
-	for _, m := range mutexes {
-		m.Unlock()
-	}
-}
-
-func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
-	drv_finishedInitialization := make(chan bool)
-	go func() {
-		elevio.SetMotorDirection(d)
-		for {
-			a := <-drv_floors
-			fmt.Printf("%v\n", a)
-			if a == 0 {
-				d = elevio.MD_Stop
-				elevio.SetMotorDirection(d)
-				break
-			}
-		}
-		//fmt.Println("Found 0 floor")
-		ableToCloseDoors = true
-		turnOffLights(Order{0, -1, 0}, true)
-
-		drv_finishedInitialization <- true
-	}()
-
-	<-drv_finishedInitialization
-
-	fmt.Printf("Initialization finished\n")
-}
-
 func main() {
-	// Single elevator
-
 	// Section_START -- FLAGS
-	// Decide the port on which we are working (for the server) & the role of the elevator
-	port_raw := flag.String("port", "", "The port of the elevator client / server")
-	role_raw := flag.String("role", "", "The role of the elevator")
-	id_raw := flag.Int("id", -1, "The id of the elevator")
-	flag.Parse()
-
-	port := *port_raw
-	role = *role_raw
-	id := *id_raw
-
-	//fmt.Printf("Working on address: %v\n", "localhost:"+port)
-	//fmt.Printf("Role passed: %v\n", role)
-	//fmt.Printf("Id passed: %v\n", id)
+	port, role, id := getFlags()
 	// Section_END -- FLAGS
 
-	// Make functionality for peer-updates
+	// Section_START -- CHANNELS
 	peerUpdateCh := make(chan peers.PeerUpdate)                    // Updates from peers
 	peerTxEnable := make(chan bool)                                // Enables/disables the transmitter
 	go peers.Transmitter(PeerChannel_PORT, id, role, peerTxEnable) // Broadcast role
@@ -170,7 +60,9 @@ func main() {
 	_ = singleStateRx
 	_ = AllStatesRx
 	_ = AllStatesTx
+	// Section_END -- CHANNELS
 
+	// Section_START -- ROLES-SPECIFIC ACTIONS
 	switch role {
 	case "Master":
 		// We assume that all elevators are active
@@ -181,7 +73,9 @@ func main() {
 		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, AllStatesTx)
 	case "PrimaryBackup":
 	}
+	// Section_END -- ROLES-SPECIFIC ACTIONS
 
+	// Section_START -- LOCAL INITIALIZATION
 	var d elevio.MotorDirection = elevio.MD_Down
 
 	initSingleElev(d, drv_floors)
@@ -197,9 +91,10 @@ func main() {
 	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
 	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange)
+	// Section_END -- LOCAL INITIALIZATION
 
-	for { // Main loop
-		select { // Select statement
+	for { // MAIN LOOP
+		select {
 
 		case a := <-drv_buttons: // New button update
 			// Gets a new button press. If it's a hall order, forwards it to the master
@@ -230,6 +125,8 @@ func main() {
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 		case a := <-hallOrderRx: // Received an HallOrderMsg from the master
+			// We turn up the lights on all slaves' servers
+			elevio.SetButtonLamp(elevio.ButtonType(a.HallOrder.Direction), a.HallOrder.Floor, true)
 
 			// Handle the hallOrder if the id's match
 			if a.Id == id {

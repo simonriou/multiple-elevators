@@ -5,8 +5,21 @@ import (
 	"Network-go/network/peers"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 )
+
+func lockMutexes(mutexes ...*sync.Mutex) { // Locks multiple mutexes
+	for _, m := range mutexes {
+		m.Lock()
+	}
+}
+
+func unlockMutexes(mutexes ...*sync.Mutex) { // Unlocks multiple mutexes
+	for _, m := range mutexes {
+		m.Unlock()
+	}
+}
 
 func isElevatorActive(elevatorId int) bool {
 	// Check if the elevator is active

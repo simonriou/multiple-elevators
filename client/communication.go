@@ -5,6 +5,8 @@ import (
 	"Network-go/network/bcast"
 	"fmt"
 	"math"
+	"time"
+	"sync"
 )
 
 type HRAInput struct {
@@ -15,6 +17,28 @@ type HRAInput struct {
 type HallOrderMsg struct {
 	Id        int
 	HallOrder Order
+}
+
+func incrementTimeSinceSent(hallOrderTimers []hallOrder, stepMillisecond int64) {
+	for {
+		time.Sleep(stepMillisecond)
+
+		hallOrderTimers.mutex.Lock()
+		for OrderTimer := range hallOrderTimers {
+			hallOrderTimers.timeSinceSent += stepMillisecond
+		}
+		hallOrderTimers.mutex.Unlock()
+	}
+}
+
+func checkForToleranceExceeding(hallOrderTimers []hallOrder) {
+	hallOrderTimers.mutex.Lock()
+	for OrderTimer := range hallOrderTimers {
+		currentTime := hallOrderTimers.timeSinceSent
+		
+	}
+
+	hallOrderTimers.mutex.Unlock()
 }
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg, allStatesTx chan [numElev]ElevState) {
@@ -49,9 +73,12 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	type hallOrderTimer struct {
 		activeHallOrder Order
 		activeId        int
-		timeSinceSent   int
+		timeSinceSent   int64
 	}
 	hallOrderTimers := []hallOrderTimer{}
+	hallOrderTimers_mutex := sync.mutex{}
+
+	incrementTimeSinceSent(hallOrderTimers, stepMillisecond int64)
 
 	// SectionEnd - Info regarding hallOrders
 
