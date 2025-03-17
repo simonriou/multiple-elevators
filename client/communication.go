@@ -48,7 +48,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	for {
 		select {
 		case a := <-hallBtnRx:
-			fmt.Printf("CodeExcecutionStart - hallBtnRx in MasterRoutine\n")
 			// Calculate the cost of assigning the order to each elevator
 			orderCosts := [numElev]float64{}
 
@@ -70,11 +69,9 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			}
 
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
-			fmt.Printf("HallOrderMsg sent: %v\n", HallOrderMessage)
 
 			hallOrderTx <- HallOrderMessage
 
-			fmt.Printf("CodeExcecutionEnd - hallBtnRx in MasterRoutine\n")
 		case a := <-singleStateRx:
 			// Update our list of allStates with the new state
 
@@ -105,17 +102,21 @@ func PrintButtonEvent(event elevio.ButtonEvent) {
 // Cost function for assigning an order to an elevator.
 func calculateCost(elevator ElevState, order Order) float64 {
 	// Base cost is the absolute distance from the elevator to the order
-	cost := math.Abs(float64(order.Floor - elevator.Floor))
+	cost := 1 + math.Abs(float64(order.Floor-elevator.Floor))
 
 	// If elevator is idle, prioritize it
 	if elevator.Behavior == "idle" {
-		cost *= 0.5 // Favor idle elevators
+		cost *= 0.5 // Strongly favor idle elevators
+	}
+
+	if elevator.Behavior == "moving" && order.Floor == elevator.Floor {
+		cost *= 2
 	}
 
 	// If moving in the same direction and order is on the way, lower cost
 	if (elevator.Direction == "up" && order.Direction == 1 && order.Floor >= elevator.Floor) ||
 		(elevator.Direction == "down" && order.Direction == -1 && order.Floor <= elevator.Floor) {
-		cost *= 0.8 // Favor elevators already moving toward the order
+		cost *= 0.5 // Favor elevators already moving toward the order
 	}
 
 	// If moving in the opposite direction, penalize cost
@@ -126,3 +127,17 @@ func calculateCost(elevator ElevState, order Order) float64 {
 
 	return cost
 }
+
+/*
+// Cost function for assigning an order to an elevator.
+func calculateCost(elevator ElevState, order Order) float64 {
+	// Base cost is the absolute distance from the elevator to the order
+	cost := math.Abs(float64(order.Floor - elevator.Floor))
+	if elevator.Behavior == "Idle" {
+		// If the elevator is idle, we add a small cost to the cost of the order
+		return cost
+	}
+
+	return cost
+}
+*/

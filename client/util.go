@@ -295,7 +295,6 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 	for {
 		select {
 		case a := <- consumer2drv_floors: // Triggers when we arrive at a new floor
-			fmt.Printf("Reached drv_floors in attendtoSpecific: %v\n", a)
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 			if a == current_order.Floor { // Check if our new floor is equal to the floor of the order
 				// Set direction to stop and delete relevant orders from elevatorOrders
@@ -307,9 +306,9 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 
 				PopOrders()
 
-				elevio.SetDoorOpenLamp(false)
-				StopBlocker(3000 * time.Millisecond)
 				elevio.SetDoorOpenLamp(true)
+				StopBlocker(3000 * time.Millisecond)
+				elevio.SetDoorOpenLamp(false)
 
 				// After deleting the relevant orders at our floor => find, if any, the next currentOrder
 				if len(elevatorOrders) != 0 {
@@ -332,7 +331,6 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
-			fmt.Println("New order: ", a)
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 
 			current_order = a
@@ -340,8 +338,6 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			switch {
 			// Case 1: HandleOrders sent a new Order and it is at the same floor
 			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
-				fmt.Printf("HandleOrders sent a new Order and it is at the same floor\n")
-
 				turnOffLights(current_order, false)
 
 				elevio.SetDoorOpenLamp(true)
@@ -377,7 +373,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				changeDirBasedOnCurrentOrder(d, current_order, current_position)
 				new_direction := *d
 
-				elevio.SetDoorOpenLamp(false)
+				elevio.SetDoorOpenLamp(false) // Just in case
 
 				elevio.SetMotorDirection(*d)
 
@@ -391,6 +387,5 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		}
-		fmt.Println("Looping specific order")
 	}
 }
