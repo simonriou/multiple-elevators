@@ -12,6 +12,7 @@ const ( // Ports
 	SingleElevatorState_PORT
 	AllStates_PORT
 	PeerChannel_PORT
+	BackupStates_PORT
 )
 
 const (
@@ -63,8 +64,11 @@ var ( // The active elevators
 	mutex_activeElevators sync.Mutex
 )
 
+var (
+	backupStates [numElev]ElevState // The backup states array
+	mutex_backup sync.Mutex
+)
+
 var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
-
-const HallOrderTolerance int64 = 30 * 1000

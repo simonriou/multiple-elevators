@@ -1,12 +1,14 @@
 Multiple elevators
 ======================
 
-Latest update: March, 10th
+Latest update: March, 17th
 
 ---
 
 To-Do List:
-- Finish handling connections between the elevators
-- Make the logic for the master elevator to select one elevator for a job
-- Handle the backup part (primary backup storing data)
-- Handle the roles change in case of a shutdown
+- Handle the role changes (main.go, peerLoss), peerUpdateChannel, if someone joins and someone disconnects
+- Handle the re-assigning of a lost / stopped elevator
+- Make functionality for the primary backup
+- Display the union of the hallOrders, (low priority)
+
+

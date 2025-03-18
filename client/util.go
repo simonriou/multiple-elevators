@@ -9,6 +9,18 @@ import (
 	"time"
 )
 
+func sortElevators(activeElevators []int) []int {
+	// Sort the active elevators
+	for i := 0; i < len(activeElevators); i++ {
+		for j := i + 1; j < len(activeElevators); j++ {
+			if activeElevators[i] > activeElevators[j] {
+				activeElevators[i], activeElevators[j] = activeElevators[j], activeElevators[i]
+			}
+		}
+	}
+	return activeElevators
+}
+
 func lockMutexes(mutexes ...*sync.Mutex) { // Locks multiple mutexes
 	for _, m := range mutexes {
 		m.Lock()
@@ -98,11 +110,14 @@ func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights
 	case !allFloors:
 		// Turn off the button lamp at the current floor
 		if current_order.OrderType == hall { // Hall button
-			if current_order.Direction == up { // Hall up
-				elevio.SetButtonLamp(elevio.BT_HallUp, current_order.Floor, false)
-			} else { // Hall down
-				elevio.SetButtonLamp(elevio.BT_HallDown, current_order.Floor, false)
-			}
+			/*
+				if current_order.Direction == up { // Hall up
+					elevio.SetButtonLamp(elevio.BT_HallUp, current_order.Floor, false)
+				} else { // Hall down
+					elevio.SetButtonLamp(elevio.BT_HallDown, current_order.Floor, false)
+				}
+			*/
+
 		} else { // Cab button
 			elevio.SetButtonLamp(elevio.BT_Cab, current_order.Floor, false)
 		}

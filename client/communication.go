@@ -5,8 +5,6 @@ import (
 	"Network-go/network/bcast"
 	"fmt"
 	"math"
-	"time"
-	"sync"
 )
 
 type HRAInput struct {
@@ -19,75 +17,24 @@ type HallOrderMsg struct {
 	HallOrder Order
 }
 
-func incrementTimeSinceSent(hallOrderTimers []hallOrder, stepMillisecond int64) {
-	for {
-		time.Sleep(stepMillisecond)
-
-		hallOrderTimers.mutex.Lock()
-		for OrderTimer := range hallOrderTimers {
-			hallOrderTimers.timeSinceSent += stepMillisecond
-		}
-		hallOrderTimers.mutex.Unlock()
-	}
-}
-
-func checkForToleranceExceeding(hallOrderTimers []hallOrder) {
-	hallOrderTimers.mutex.Lock()
-	for OrderTimer := range hallOrderTimers {
-		currentTime := hallOrderTimers.timeSinceSent
-		
-	}
-
-	hallOrderTimers.mutex.Unlock()
-}
-
-func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg, allStatesTx chan [numElev]ElevState) {
+func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
+	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState) {
 
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
-	go bcast.Transmitter(AllStates_PORT, allStatesTx)
+	go bcast.Transmitter(AllStates_PORT, backupStatesTx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
-	var allStates [numElev]ElevState
-	uninitializedOrderArray := []Order{
-		{
-			Floor:     0,
-			Direction: up,   // Replace with your OrderDirection constant (e.g., Up or Down)
-			OrderType: hall, // Replace with your OrderType constant (e.g., Hall or Cab)
-		},
-	}
-	uninitialized_ElevState := ElevState{
-		Behavior:      "Uninitialized",
-		Floor:         -2,
-		Direction:     "Uninitialized",
-		LocalRequests: uninitializedOrderArray,
-	}
-
-	for i := range allStates {
-		allStates[i] = uninitialized_ElevState
-	}
-
-	// SectionStart - Info regarding hallOrders
-	type hallOrderTimer struct {
-		activeHallOrder Order
-		activeId        int
-		timeSinceSent   int64
-	}
-	hallOrderTimers := []hallOrderTimer{}
-	hallOrderTimers_mutex := sync.mutex{}
-
-	incrementTimeSinceSent(hallOrderTimers, stepMillisecond int64)
-
-	// SectionEnd - Info regarding hallOrders
+	var allStates = <-newStatesRx
 
 	for {
 		select {
 		case a := <-hallBtnRx:
 
 			// Retrieves the information on the working elevators
-			workingElevNb := len(activeElevators)
+			var workingElevNb = len(activeElevators)
 			workingElevs := make([]ElevState, workingElevNb)
 			// Remember which index coresponds to which elevator id
 			// This is important for sending the hall order to the correct elevator
@@ -98,7 +45,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			}
 
 			// Calculate the cost of assigning the order to each elevator
-			orderCosts := [numElev]float64{}
+			orderCosts := make([]float64, workingElevNb)
 
 			PrintButtonEvent(a)
 			for i, state := range workingElevs {
@@ -125,21 +72,22 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Send the order to a slave
 			hallOrderTx <- HallOrderMessage
 
-			// Add the active order in hallOrderTimers
-			timerHallOrder := hallOrderTimer{activeHallOrder: btnPressToOrder(a), activeId: bestElevator, timeSinceSent: 0}
-			hallOrderTimers = append(hallOrderTimers, timerHallOrder)
-
 		case a := <-singleStateRx:
 			// Update our list of allStates with the new state
 			allStates[a.Id] = a.State
 
 			// Send the new states list to the primary backup
-			allStatesTx <- allStates
+			backupStatesTx <- allStates
 		}
 	}
 }
 
-func PrimaryRoutine() {
+func PrimaryBackupRoutine(backupStatesRx chan [numElev]ElevState, newStatesTx chan [numElev]ElevState) {
+
+	go bcast.Receiver(BackupStates_PORT, backupStatesRx) // Used to receive the states from the master
+	go bcast.Transmitter(BackupStates_PORT, newStatesTx) // Used to send the states to the NEW master
+
+	// To-Do: update the global backupStates
 
 }
 

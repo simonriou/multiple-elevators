@@ -9,7 +9,7 @@ import (
 )
 
 const numFloors = 4 // Number of floors
-const numElev = 2   // Number of elevators
+const numElev = 3   // Number of elevators
 
 func main() {
 	// Section_START -- FLAGS
@@ -52,14 +52,19 @@ func main() {
 	hallBtnRx := make(chan elevio.ButtonEvent)
 	hallOrderTx := make(chan HallOrderMsg)
 	singleStateRx := make(chan StateMsg)
-	AllStatesRx := make(chan [numElev]ElevState)
-	AllStatesTx := make(chan [numElev]ElevState)
+	backupStatesRx := make(chan [numElev]ElevState) // Receive all states from master to backup
+	backupStatesTx := make(chan [numElev]ElevState) // Send all states from master to backup
+	newStatesRx := make(chan [numElev]ElevState)    // Receive all NEW states from backup to master
+	newStatesTx := make(chan [numElev]ElevState)    // Send all NEW states from backup to master
 
 	_ = hallBtnRx
 	_ = hallOrderTx
 	_ = singleStateRx
-	_ = AllStatesRx
-	_ = AllStatesTx
+	_ = backupStatesTx
+	_ = backupStatesRx
+	_ = newStatesTx
+	_ = newStatesRx
+
 	// Section_END -- CHANNELS
 
 	// Section_START -- ROLES-SPECIFIC ACTIONS
@@ -70,8 +75,31 @@ func main() {
 			activeElevators = append(activeElevators, i)
 		}
 
-		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, AllStatesTx)
+		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx)
+
+		var allStates [numElev]ElevState
+		uninitializedOrderArray := []Order{
+			{
+				Floor:     0,
+				Direction: up,   // Replace with your OrderDirection constant (e.g., Up or Down)
+				OrderType: hall, // Replace with your OrderType constant (e.g., Hall or Cab)
+			},
+		}
+		uninitialized_ElevState := ElevState{
+			Behavior:      "Uninitialized",
+			Floor:         -2,
+			Direction:     "Uninitialized",
+			LocalRequests: uninitializedOrderArray,
+		}
+
+		for i := range allStates {
+			allStates[i] = uninitialized_ElevState
+		}
+
+		// Send the initial states to the master
+		backupStatesRx <- allStates
 	case "PrimaryBackup":
+		go PrimaryBackupRoutine(backupStatesRx, newStatesTx)
 	}
 	// Section_END -- ROLES-SPECIFIC ACTIONS
 
@@ -126,7 +154,7 @@ func main() {
 
 		case a := <-hallOrderRx: // Received an HallOrderMsg from the master
 			// We turn up the lights on all slaves' servers
-			elevio.SetButtonLamp(elevio.ButtonType(a.HallOrder.Direction), a.HallOrder.Floor, true)
+			// elevio.SetButtonLamp(elevio.ButtonType(a.HallOrder.Direction), a.HallOrder.Floor, true)
 
 			// Handle the hallOrder if the id's match
 			if a.Id == id {
@@ -207,7 +235,6 @@ func main() {
 			}
 
 		case p := <-peerUpdateCh:
-
 			// Convert the p.Peers, p.New and p.Lost from string to structures
 			var mPeers []peers.ElevIdentity
 			for _, v := range p.Peers {
@@ -229,36 +256,60 @@ func main() {
 			fmt.Printf("  New:      %v\n", mNew)
 			fmt.Printf("  Lost:     %v\n", mLost)
 
+			fmt.Printf("Number of lost elevators: %v\n", len(mLost))
+
 			switch {
 			case mNew != (peers.ElevIdentity{}): // A new peer joins the network
 
 				// Check if the new peer already is in the activeElevators list
-				lockMutexes(&mutex_activeElevators)
+				mutex_activeElevators.Lock()
 				alreadyExists := isElevatorActive(mNew.Id)
 
 				if !alreadyExists {
 					activeElevators = append(activeElevators, mNew.Id)
 				}
-				unlockMutexes(&mutex_activeElevators)
-
-				// Handle the roles change when a new peer joins
+				activeElevators = sortElevators(activeElevators)
+				mutex_activeElevators.Unlock()
 
 				fmt.Printf("Active elevators: %v\n", activeElevators)
 
 			case len(mLost) > 0: // A peer leaves the network
+				fmt.Print("LOST ELEVATOR\n")
+				// We assume that we only have one down elevator at a time
+				lostElevator := mLost[0]
 
-				for _, v := range mLost { // For each lost elevator
-					lockMutexes(&mutex_activeElevators)
-					alreadyExists := isElevatorActive(v.Id)
-					if alreadyExists { // If the elevator is active
-						removeElevator(v.Id) // Remove the elevator from the activeElevators list
-					}
-					unlockMutexes(&mutex_activeElevators)
+				alreadyExists := isElevatorActive(lostElevator.Id)
+				if alreadyExists { // If the elevator is active
+					removeElevator(lostElevator.Id) // Remove the elevator from the activeElevators list
 				}
+				activeElevators = sortElevators(activeElevators)
+				fmt.Printf("Active elevators: %v\n", activeElevators)
 
 				// Handle the roles change when a peer leaves
+				switch lostElevator.Role {
+				case "Master":
+					// The master leaves the network. The Regular becomes PrimaryBackup & the PrimaryBackup becomes Master
+					switch role {
+					case "Regular":
 
-				fmt.Printf("Active elevators: %v\n", activeElevators)
+						// Switch role to primary backup and launch it
+						role = "PrimaryBackup"
+						go PrimaryBackupRoutine(backupStatesRx, newStatesTx)
+
+					case "PrimaryBackup":
+
+						role = "Master"
+						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx)
+						newStatesRx <- backupStates // Sending the backupStates to the new master
+
+					}
+				case "PrimaryBackup":
+					// The PrimaryBackup leaves the network. The Regular becomes PrimaryBackup
+					if role == "Regular" {
+						role = "PrimaryBackup"
+						go PrimaryBackupRoutine(backupStatesRx, newStatesTx)
+					}
+				}
 
 			}
 
