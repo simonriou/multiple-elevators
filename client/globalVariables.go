@@ -13,6 +13,7 @@ const ( // Ports
 	AllStates_PORT
 	PeerChannel_PORT
 	BackupStates_PORT
+	hallOrderCompleted_PORT
 )
 
 const (

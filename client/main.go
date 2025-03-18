@@ -44,10 +44,12 @@ func main() {
 	hallBtnTx := make(chan elevio.ButtonEvent)
 	hallOrderRx := make(chan HallOrderMsg)
 	singleStateTx := make(chan StateMsg)
+	hallOrderCompleted := make(chan Order)
 
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
 	go bcast.Transmitter(HallOrderRawBTN_PORT, hallBtnTx)
 	go bcast.Transmitter(SingleElevatorState_PORT, singleStateTx)
+	go bcast.Receiver(hallOrderCompleted_PORT, hallOrderCompleted)
 
 	hallBtnRx := make(chan elevio.ButtonEvent)
 	hallOrderTx := make(chan HallOrderMsg)
@@ -57,12 +59,13 @@ func main() {
 	newStatesRx := make(chan [numElev]ElevState)    // Receive all NEW states from backup to master
 	newStatesTx := make(chan [numElev]ElevState)    // Send all NEW states from backup to master
 
+	go bcast.Transmitter(BackupStates_PORT, newStatesTx) // Used to send the states to the NEW master (used in role changes)
+
 	_ = hallBtnRx
 	_ = hallOrderTx
 	_ = singleStateRx
 	_ = backupStatesTx
 	_ = backupStatesRx
-	_ = newStatesTx
 	_ = newStatesRx
 
 	// Section_END -- CHANNELS
@@ -75,7 +78,7 @@ func main() {
 			activeElevators = append(activeElevators, i)
 		}
 
-		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx)
+		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompleted)
 
 		var allStates [numElev]ElevState
 		uninitializedOrderArray := []Order{
@@ -99,7 +102,7 @@ func main() {
 		// Send the initial states to the master
 		backupStatesRx <- allStates
 	case "PrimaryBackup":
-		go PrimaryBackupRoutine(backupStatesRx, newStatesTx)
+		go PrimaryBackupRoutine(backupStatesRx)
 	}
 	// Section_END -- ROLES-SPECIFIC ACTIONS
 
@@ -294,20 +297,20 @@ func main() {
 
 						// Switch role to primary backup and launch it
 						role = "PrimaryBackup"
-						go PrimaryBackupRoutine(backupStatesRx, newStatesTx)
+						go PrimaryBackupRoutine(backupStatesRx)
 
 					case "PrimaryBackup":
 
 						role = "Master"
-						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx)
-						newStatesRx <- backupStates // Sending the backupStates to the new master
+						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompleted)
+						newStatesTx <- backupStates // Sending the backupStates to the new master
 
 					}
 				case "PrimaryBackup":
 					// The PrimaryBackup leaves the network. The Regular becomes PrimaryBackup
 					if role == "Regular" {
 						role = "PrimaryBackup"
-						go PrimaryBackupRoutine(backupStatesRx, newStatesTx)
+						go PrimaryBackupRoutine(backupStatesRx)
 					}
 				}
 

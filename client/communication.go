@@ -18,12 +18,15 @@ type HallOrderMsg struct {
 }
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
-	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState) {
+	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
+	hallOrderCompleted chan Order) {
 
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
 	go bcast.Transmitter(AllStates_PORT, backupStatesTx)
+	go bcast.Receiver(BackupStates_PORT, newStatesRx)
+	go bcast.Transmitter(hallOrderCompleted_PORT, hallOrderCompleted)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -82,12 +85,21 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	}
 }
 
-func PrimaryBackupRoutine(backupStatesRx chan [numElev]ElevState, newStatesTx chan [numElev]ElevState) {
+func PrimaryBackupRoutine(backupStatesRx chan [numElev]ElevState) {
 
-	go bcast.Receiver(BackupStates_PORT, backupStatesRx) // Used to receive the states from the master
-	go bcast.Transmitter(BackupStates_PORT, newStatesTx) // Used to send the states to the NEW master
+	go bcast.Receiver(AllStates_PORT, backupStatesRx) // Used to receive the states from the master
 
 	// To-Do: update the global backupStates
+
+	for {
+		select {
+		case a := <-backupStatesRx:
+			// Update the global backupStates
+			mutex_backup.Lock()
+			backupStates = a
+			mutex_backup.Unlock()
+		}
+	}
 
 }
 
