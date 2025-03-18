@@ -17,6 +17,48 @@ type HallOrderMsg struct {
 	HallOrder Order
 }
 
+func extractHallOrders(orders []Order) []Order {
+	var hallOrders []Order
+	for _, order := range orders {
+		if order.OrderType == hall { // Check if it's a HallOrder
+			hallOrders = append(hallOrders, order) // Add to the hallOrders slice
+		}
+	}
+	return hallOrders
+}
+
+// Function to find elements not contained in both lists
+func findUniqueElements(list1, list2 []int) []int {
+	var uniqueElements []int
+	elementExists := make(map[int]bool)
+
+	// Add elements of list1 to the map (for quick lookup)
+	for _, elem := range list1 {
+		elementExists[elem] = true
+	}
+
+	// Check for elements in list2 that are not in list1
+	for _, elem := range list2 {
+		if !elementExists[elem] {
+			uniqueElements = append(uniqueElements, elem)
+		}
+	}
+
+	// Check for elements in list1 that are not in list2
+	elementExists = make(map[int]bool) // Reset the map
+	for _, elem := range list2 {
+		elementExists[elem] = true
+	}
+
+	for _, elem := range list1 {
+		if !elementExists[elem] {
+			uniqueElements = append(uniqueElements, elem)
+		}
+	}
+
+	return uniqueElements
+}
+
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
 	hallOrderCompleted chan Order) {
@@ -75,11 +117,20 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Send the order to a slave
 			hallOrderTx <- HallOrderMessage
 
-		case a := <-singleStateRx:
-			// Update our list of allStates with the new state
-			allStates[a.Id] = a.State
+		case a := <-singleStateRx: // A state update on singleStateRx
 
-			// Send the new states list to the primary backup
+			// Compare the old and new state and send a message on orderCompleted so that the order lights get taken care of
+			oldStateOrders := allStates[a.Id].LocalRequests
+			newStateOrders := a.State.LocalRequests
+
+			oldHallOrders := extractHallOrders(oldStateOrders)
+			newHallOrders := extractHallOrders(newStateOrders)
+
+			_ = oldHallOrders
+			_ = newHallOrders
+
+			// Update our list of allStates with the new state and send new states list to the primary backup
+			allStates[a.Id] = a.State
 			backupStatesTx <- allStates
 		}
 	}
