@@ -44,7 +44,7 @@ func main() {
 	hallBtnTx := make(chan elevio.ButtonEvent) // ALL - Send hall orders to the master
 	hallOrderRx := make(chan HallOrderMsg)     // ALL - Receive hall orders from the master
 	singleStateTx := make(chan StateMsg)       // ALL - Send the state of the elevator to the master
-	hallOrderCompleted := make(chan Order)     // ALL - Confirm hall order (for lights)
+	hallOrderCompleted := make(chan []Order)   // ALL - Confirm hall order (for lights)
 
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
 	go bcast.Transmitter(HallOrderRawBTN_PORT, hallBtnTx)
@@ -350,7 +350,8 @@ func main() {
 
 			}
 		case a := <-hallOrderCompleted:
-
+			_ = a
+			// turnOffHallLights()
 		}
 
 	}

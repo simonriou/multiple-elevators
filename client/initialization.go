@@ -21,7 +21,7 @@ func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
 		}
 		//fmt.Println("Found 0 floor")
 		ableToCloseDoors = true
-		turnOffLights(Order{0, -1, 0}, true)
+		//turnOffLights(Order{0, -1, 0}, true)
 
 		drv_finishedInitialization <- true
 	}()

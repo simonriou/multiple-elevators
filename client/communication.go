@@ -27,41 +27,50 @@ func extractHallOrders(orders []Order) []Order {
 	return hallOrders
 }
 
-// Function to find elements not contained in both lists
-func findUniqueElements(list1, list2 []int) []int {
-	var uniqueElements []int
-	elementExists := make(map[int]bool)
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
-	// Add elements of list1 to the map (for quick lookup)
-	for _, elem := range list1 {
-		elementExists[elem] = true
+// Function to find elements in oldStateOrders that are not in newStateOrders and vice versa
+func findUniqueOrders(oldOrders, newOrders []Order) []Order {
+	// Use maps to track orders
+	oldOrdersMap := make(map[Order]bool)
+	newOrdersMap := make(map[Order]bool)
+	var uniqueOrders []Order
+
+	// Add all old orders to oldOrdersMap
+	for _, order := range oldOrders {
+		oldOrdersMap[order] = true
 	}
 
-	// Check for elements in list2 that are not in list1
-	for _, elem := range list2 {
-		if !elementExists[elem] {
-			uniqueElements = append(uniqueElements, elem)
+	// Add all new orders to newOrdersMap
+	for _, order := range newOrders {
+		newOrdersMap[order] = true
+	}
+
+	// Find orders in oldOrdersMap that are not in newOrdersMap
+	for order := range oldOrdersMap {
+		if !newOrdersMap[order] {
+			uniqueOrders = append(uniqueOrders, order)
 		}
 	}
 
-	// Check for elements in list1 that are not in list2
-	elementExists = make(map[int]bool) // Reset the map
-	for _, elem := range list2 {
-		elementExists[elem] = true
-	}
-
-	for _, elem := range list1 {
-		if !elementExists[elem] {
-			uniqueElements = append(uniqueElements, elem)
+	// Find orders in newOrdersMap that are not in oldOrdersMap
+	for order := range newOrdersMap {
+		if !oldOrdersMap[order] {
+			uniqueOrders = append(uniqueOrders, order)
 		}
 	}
 
-	return uniqueElements
+	return uniqueOrders
 }
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
-	hallOrderCompleted chan Order) {
+	hallOrderCompleted chan []Order) {
 
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
@@ -120,11 +129,20 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 		case a := <-singleStateRx: // A state update on singleStateRx
 
 			// Compare the old and new state and send a message on orderCompleted so that the order lights get taken care of
+			//        Assume that we dont delete and add hallOrders at the same time
 			oldStateOrders := allStates[a.Id].LocalRequests
 			newStateOrders := a.State.LocalRequests
 
 			oldHallOrders := extractHallOrders(oldStateOrders)
 			newHallOrders := extractHallOrders(newStateOrders)
+			length_old := len(oldHallOrders)
+			length_new := len(newHallOrders)
+			if length_new < length_old {
+				removed_hallOrders := findUniqueOrders(oldHallOrders, newHallOrders)
+				hallOrderCompleted <- removed_hallOrders
+			}
+
+			findUniqueOrders(oldHallOrders, newHallOrders)
 
 			_ = oldHallOrders
 			_ = newHallOrders

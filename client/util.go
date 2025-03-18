@@ -105,28 +105,25 @@ func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order
 	latestState.LocalRequests = elevatorOrders
 }
 
-func turnOffLights(current_order Order, allFloors bool) { // Turn off the lights for the current order
-	switch {
-	case !allFloors:
-		// Turn off the button lamp at the current floor
-		if current_order.OrderType == hall { // Hall button
-			/*
-				if current_order.Direction == up { // Hall up
-					elevio.SetButtonLamp(elevio.BT_HallUp, current_order.Floor, false)
-				} else { // Hall down
-					elevio.SetButtonLamp(elevio.BT_HallDown, current_order.Floor, false)
-				}
-			*/
-
-		} else { // Cab button
-			elevio.SetButtonLamp(elevio.BT_Cab, current_order.Floor, false)
+func turnOffHallLights(order Order) {
+	// Turn off the button lamp at the current floor
+	if order.OrderType == hall { // Hall button
+		if order.Direction == up { // Hall up
+			elevio.SetButtonLamp(elevio.BT_HallUp, order.Floor, false)
+		} else { // Hall down
+			elevio.SetButtonLamp(elevio.BT_HallDown, order.Floor, false)
 		}
+	}
+}
 
-	case allFloors:
-		for f := 0; f < numFloors; f++ {
-			for b := elevio.ButtonType(0); b < 3; b++ {
-				elevio.SetButtonLamp(b, f, false)
-			}
+func turnOffCabLights(current_order Order) { // Turn off the lights for the current order
+	elevio.SetButtonLamp(elevio.BT_Cab, current_order.Floor, false)
+}
+
+func turnOffAllLights(current_order Order) {
+	for f := 0; f < numFloors; f++ {
+		for b := ButtonType(0); b < 3; b++ {
+			elevio.SetButtonLamp(elevio.ButtonType(b), f, false)
 		}
 	}
 }
@@ -361,7 +358,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				*d = elevio.MD_Stop
 				elevio.SetMotorDirection(*d)
 
-				turnOffLights(current_order, false) // Clear the lights for this order
+				turnOffCabLights(current_order) // Clear the cab lights for this order
 
 				PopOrders()
 
@@ -385,7 +382,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 					}
 					lockMutexes(&mutex_d, &mutex_posArray)
 				} else {
-					turnOffLights(current_order, true)
+					turnOffAllLights(current_order)
 				}
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
@@ -397,7 +394,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			switch {
 			// Case 1: HandleOrders sent a new Order and it is at the same floor
 			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
-				turnOffLights(current_order, false)
+				turnOffCabLights(current_order) // Clear the cab lights for this order
 
 				elevio.SetDoorOpenLamp(true)
 				StopBlocker(3000 * time.Millisecond)
@@ -421,7 +418,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 					}
 					lockMutexes(&mutex_d, &mutex_posArray)
 				} else {
-					turnOffLights(current_order, true)
+					turnOffAllLights(current_order)
 				}
 
 				// Case 2: HandleOrders sent a new Order and it is at a different floor
