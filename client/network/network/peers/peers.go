@@ -52,23 +52,26 @@ const timeout = 500 * time.Millisecond
 // 	}
 // }
 
-func Transmitter(port int, id int, role string, transmitEnable <-chan bool) {
-
+func Transmitter(port int, id int, roleChan <-chan string, transmitEnable <-chan bool) {
 	conn := conn.DialBroadcastUDP(port)
 	addr, _ := net.ResolveUDPAddr("udp4", fmt.Sprintf("255.255.255.255:%d", port))
 
 	enable := true
-	msg := ElevIdentity{Id: id, Role: role}
+	currentRole := ""
+	msg := ElevIdentity{Id: id, Role: currentRole}
 
 	for {
 		select {
 		case enable = <-transmitEnable:
+		case newRole := <-roleChan:
+			currentRole = newRole
+			msg.Role = currentRole
 		case <-time.After(interval):
 		}
 		if enable {
 			data, err := json.Marshal(msg)
 			if err != nil {
-				continue // or handle the error
+				continue
 			}
 			conn.WriteTo(data, addr)
 		}

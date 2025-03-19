@@ -12,15 +12,19 @@ const numFloors = 4 // Number of floors
 const numElev = 3   // Number of elevators
 
 func main() {
-	// Section_START -- FLAGS
-	port, role, id := getFlags()
+	// Section_START -- FLAGS & ROLE
+	port, initialRole, id := getFlags()
+	roleChannel := make(chan string)
 	// Section_END -- FLAGS
 
+	currentRole := initialRole
+
 	// Section_START -- CHANNELS
-	peerUpdateCh := make(chan peers.PeerUpdate)                    // Updates from peers
-	peerTxEnable := make(chan bool)                                // Enables/disables the transmitter
-	go peers.Transmitter(PeerChannel_PORT, id, role, peerTxEnable) // Broadcast role
-	go peers.Receiver(PeerChannel_PORT, peerUpdateCh)              // Listen for updates
+	peerUpdateCh := make(chan peers.PeerUpdate)                           // Updates from peers
+	peerTxEnable := make(chan bool)                                       // Enables/disables the transmitter
+	go peers.Transmitter(PeerChannel_PORT, id, roleChannel, peerTxEnable) // Broadcast role
+	roleChannel <- currentRole
+	go peers.Receiver(PeerChannel_PORT, peerUpdateCh) // Listen for updates
 
 	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
@@ -40,16 +44,16 @@ func main() {
 	go elevio.PollObstructionSwitch(drv_obstr) // Obstruction updates
 	go elevio.PollStopButton(drv_stop)         // Stop button presses
 
-	// Channels for the network
+	// Channels for the single elevators
 	hallBtnTx := make(chan elevio.ButtonEvent) // ALL - Send hall orders to the master
 	hallOrderRx := make(chan HallOrderMsg)     // ALL - Receive hall orders from the master
 	singleStateTx := make(chan StateMsg)       // ALL - Send the state of the elevator to the master
-	hallOrderCompleted := make(chan []Order)   // ALL - Confirm hall order (for lights)
+	hallOrderCompletedRx := make(chan []Order) // ALL - Confirm hall order (for lights)
 
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
 	go bcast.Transmitter(HallOrderRawBTN_PORT, hallBtnTx)
 	go bcast.Transmitter(SingleElevatorState_PORT, singleStateTx)
-	go bcast.Receiver(hallOrderCompleted_PORT, hallOrderCompleted)
+	go bcast.Receiver(hallOrderCompleted_PORT, hallOrderCompletedRx)
 
 	// Channels for specific roles
 	hallBtnRx := make(chan elevio.ButtonEvent)      // MASTER - Receive hall orders from slaves
@@ -59,6 +63,7 @@ func main() {
 	backupStatesTx := make(chan [numElev]ElevState) // MASTER - Send all states to backup
 	newStatesRx := make(chan [numElev]ElevState)    // MASTER - Receive all NEW states from backup
 	newStatesTx := make(chan [numElev]ElevState)    // BACKUP - Send all states to the NEW master
+	hallOrderCompletedTx := make(chan []Order)
 
 	go bcast.Transmitter(BackupStates_PORT, newStatesTx) // LOCAL - Used to send the states to the NEW master (used in role changes)
 
@@ -66,7 +71,6 @@ func main() {
 	_ = hallOrderTx
 	_ = singleStateRx
 	_ = backupStatesTx
-	_ = backupStatesRx
 	_ = newStatesRx
 
 	// Section_END -- CHANNELS
@@ -81,7 +85,7 @@ func main() {
 		}
 
 		// Starting the Master Routine
-		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompleted)
+		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx)
 
 		// This is the initial states of the elevators
 		var allStates [numElev]ElevState
@@ -104,7 +108,9 @@ func main() {
 		}
 
 		// Send the initial states to the master
-		backupStatesRx <- allStates
+		newStatesRx <- allStates
+
+		fmt.Print("a\n")
 
 	case "PrimaryBackup":
 
@@ -166,7 +172,10 @@ func main() {
 
 		case a := <-hallOrderRx: // NEW ORDER FROM THE MASTER
 			// We turn up the lights on all slaves' servers
-			// elevio.SetButtonLamp(elevio.ButtonType(a.HallOrder.Direction), a.HallOrder.Floor, true) ## NEEDS A FIX
+			hallOrderDir := a.HallOrder.Direction
+			buttonType := elevDirectionToElevioButtonType(hallOrderDir)
+
+			elevio.SetButtonLamp(buttonType, a.HallOrder.Floor, true)
 
 			// Checking if we are the elevator that should take the order
 			if a.Id == id {
@@ -304,35 +313,45 @@ func main() {
 				fmt.Printf("Active elevators: %v\n", activeElevators) // ## PLACEHOLDER ##
 
 				// Section_START -- CHANGING ROLES
+				newRole := currentRole
+				_ = newRole
+
 				switch lostElevator.Role {
 				case "Master": // The master leaves the network
 					// The Regular becomes PrimaryBackup & the PrimaryBackup becomes Master
-					switch role {
+					switch currentRole {
 					case "Regular":
 
 						// Switch role to primary backup and launch it
-						role = "PrimaryBackup"
+						newRole = "PrimaryBackup"
 						go PrimaryBackupRoutine(backupStatesRx)
 
 					case "PrimaryBackup":
 
-						role = "Master"
-						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompleted)
+						newRole = "Master"
+						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx)
 						newStatesTx <- backupStates // Sending the backupStates to the new master
 
 					}
 				case "PrimaryBackup": // The PrimaryBackup leaves the network
 					// The Regular becomes PrimaryBackup
-					if role == "Regular" {
-						role = "PrimaryBackup"
+					if currentRole == "Regular" {
+						newRole = "PrimaryBackup"
 						go PrimaryBackupRoutine(backupStatesRx)
 					}
 				}
+
+				if newRole != currentRole {
+					currentRole = newRole
+					roleChannel <- currentRole
+				}
+
+				fmt.Printf("My new current role: %s\n", currentRole) // ## PLACEHOLDER ##
 				// Section_END -- CHANGING ROLES
 
 				// Section_START -- RE-ASSIGNING ORDERS
 				// Re-assign the orders of the lost elevator. This is the job of the master
-				if role == "Master" { // This works because we are sure that there are a Master & a Backup at all times
+				if currentRole == "Master" { // This works because we are sure that there are a Master & a Backup at all times
 					// Get the lost orders
 					lostOrders := backupStates[lostElevator.Id].LocalRequests
 
@@ -349,9 +368,8 @@ func main() {
 				// Section_END -- RE-ASSIGNING ORDERS
 
 			}
-		case a := <-hallOrderCompleted:
-			_ = a
-			// turnOffHallLights()
+		case a := <-hallOrderCompletedRx:
+			turnOffHallLights(a...)
 		}
 
 	}

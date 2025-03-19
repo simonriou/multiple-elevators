@@ -7,29 +7,29 @@ import (
 )
 
 const ( // Ports
-	HallOrder_PORT = 16120 + iota
-	HallOrderRawBTN_PORT
-	SingleElevatorState_PORT
-	AllStates_PORT
-	PeerChannel_PORT
-	BackupStates_PORT
-	hallOrderCompleted_PORT
+		HallOrder_PORT = 16120 + iota
+		HallOrderRawBTN_PORT
+		SingleElevatorState_PORT
+		AllStates_PORT
+		PeerChannel_PORT
+		BackupStates_PORT
+		hallOrderCompleted_PORT
 )
 
 const (
-	BT_HallUp   ButtonType = 0
-	BT_HallDown            = 1
-	BT_Cab                 = 2
+		BT_HallUp   ButtonType = 0
+		BT_HallDown            = 1
+		BT_Cab                 = 2
 )
 
 const (
-	up   OrderDirection = 1
-	down OrderDirection = -1
+		up   OrderDirection = 1
+		down OrderDirection = -1
 )
 
 const (
-	hall OrderType = 0
-	cab  OrderType = 1
+		hall OrderType = 0
+		cab  OrderType = 1
 )
 
 var (

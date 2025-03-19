@@ -70,14 +70,14 @@ func findUniqueOrders(oldOrders, newOrders []Order) []Order {
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
-	hallOrderCompleted chan []Order) {
+	hallOrderCompletedTx chan []Order) {
 
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
 	go bcast.Transmitter(AllStates_PORT, backupStatesTx)
 	go bcast.Receiver(BackupStates_PORT, newStatesRx)
-	go bcast.Transmitter(hallOrderCompleted_PORT, hallOrderCompleted)
+	go bcast.Transmitter(hallOrderCompleted_PORT, hallOrderCompletedTx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -139,7 +139,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			length_new := len(newHallOrders)
 			if length_new < length_old {
 				removed_hallOrders := findUniqueOrders(oldHallOrders, newHallOrders)
-				hallOrderCompleted <- removed_hallOrders
+				hallOrderCompletedTx <- removed_hallOrders
 			}
 
 			findUniqueOrders(oldHallOrders, newHallOrders)
@@ -156,9 +156,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 func PrimaryBackupRoutine(backupStatesRx chan [numElev]ElevState) {
 
-	go bcast.Receiver(AllStates_PORT, backupStatesRx) // Used to receive the states from the master
-
 	// To-Do: update the global backupStates
+	go bcast.Receiver(AllStates_PORT, backupStatesRx) // Used to receive the states from the master
 
 	for {
 		select {

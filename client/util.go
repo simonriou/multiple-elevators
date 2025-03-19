@@ -73,6 +73,25 @@ func btnPressToOrder(btn elevio.ButtonEvent) Order { // Convert a button press t
 	return Order{Floor: btn.Floor, Direction: orderDirection, OrderType: orderType}
 }
 
+func elevDirectionToElevioButtonType(Direction OrderDirection) (buttonType elevio.ButtonType) {
+	// 1 for up, -1 for down
+	/* const (
+		BT_HallUp   ButtonType = 0
+		BT_HallDown            = 1
+		BT_Cab                 = 2
+	) */
+	switch Direction {
+	case 1:
+		return elevio.BT_HallUp
+	case -1:
+		return elevio.BT_HallDown
+	default:
+		fmt.Printf("Error: invalid direction was passed to function elevDirectionToElevioButtonType\n")
+	}
+
+	return
+}
+
 func determineBehaviour(d *elevio.MotorDirection) string { // Determine the behaviour of the elevator based on its direction
 	switch {
 	case *d == elevio.MD_Stop:
@@ -105,19 +124,27 @@ func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order
 	latestState.LocalRequests = elevatorOrders
 }
 
-func turnOffHallLights(order Order) {
+func turnOffHallLights(orders ...Order) {
 	// Turn off the button lamp at the current floor
-	if order.OrderType == hall { // Hall button
-		if order.Direction == up { // Hall up
-			elevio.SetButtonLamp(elevio.BT_HallUp, order.Floor, false)
-		} else { // Hall down
-			elevio.SetButtonLamp(elevio.BT_HallDown, order.Floor, false)
+	for _, order := range orders {
+		if order.OrderType == hall { // Hall button
+			if order.Direction == up { // Hall up
+				elevio.SetButtonLamp(elevio.BT_HallUp, order.Floor, false)
+			} else { // Hall down
+				elevio.SetButtonLamp(elevio.BT_HallDown, order.Floor, false)
+			}
 		}
 	}
+
 }
 
-func turnOffCabLights(current_order Order) { // Turn off the lights for the current order
-	elevio.SetButtonLamp(elevio.BT_Cab, current_order.Floor, false)
+func turnOffCabLights(orders ...Order) { // Turn off the lights for the current order
+	for _, order := range orders {
+		if order.OrderType == cab {
+			elevio.SetButtonLamp(elevio.BT_Cab, order.Floor, false)
+		}
+	}
+
 }
 
 func turnOffAllLights(current_order Order) {
@@ -358,7 +385,10 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				*d = elevio.MD_Stop
 				elevio.SetMotorDirection(*d)
 
-				turnOffCabLights(current_order) // Clear the cab lights for this order
+				// Clear the cab lights for this order, (the removal of hallOrders is sent through the MasterRoutine and back to all single elevators)
+				turnOffCabLights(current_order)
+				// In case we lose connection to the masterRoutine
+				turnOffHallLights(current_order)
 
 				PopOrders()
 
@@ -395,6 +425,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			// Case 1: HandleOrders sent a new Order and it is at the same floor
 			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
 				turnOffCabLights(current_order) // Clear the cab lights for this order
+				turnOffHallLights(current_order)
 
 				elevio.SetDoorOpenLamp(true)
 				StopBlocker(3000 * time.Millisecond)
