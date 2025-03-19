@@ -77,7 +77,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
 	go bcast.Transmitter(AllStates_PORT, backupStatesTx)
 	go bcast.Receiver(BackupStates_PORT, newStatesRx)
-	go bcast.Transmitter(hallOrderCompleted_PORT, hallOrderCompletedTx)
+	go bcast.Transmitter(HallOrderCompleted_PORT, hallOrderCompletedTx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves

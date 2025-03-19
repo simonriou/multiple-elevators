@@ -44,16 +44,20 @@ func main() {
 	go elevio.PollObstructionSwitch(drv_obstr) // Obstruction updates
 	go elevio.PollStopButton(drv_stop)         // Stop button presses
 
-	// Channels for the single elevators
-	hallBtnTx := make(chan elevio.ButtonEvent) // ALL - Send hall orders to the master
-	hallOrderRx := make(chan HallOrderMsg)     // ALL - Receive hall orders from the master
-	singleStateTx := make(chan StateMsg)       // ALL - Send the state of the elevator to the master
-	hallOrderCompletedRx := make(chan []Order) // ALL - Confirm hall order (for lights)
+	// Channels for the network
+	hallBtnTx := make(chan elevio.ButtonEvent)   // ALL - Send hall orders to the master
+	hallOrderRx := make(chan HallOrderMsg)       // ALL - Receive hall orders from the master
+	singleStateTx := make(chan StateMsg)         // ALL - Send the state of the elevator to the master
+	hallOrderCompletedRx := make(chan []Order)   // ALL - Confirm hall order (for lights)
+	activeElevatorsChannelTx := make(chan []int) // ALL - The channel on which we send the active elevators list
+	activeElevatorsChannelRx := make(chan []int) // ALL - The channel on which we receive the active elevators list
 
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
 	go bcast.Transmitter(HallOrderRawBTN_PORT, hallBtnTx)
 	go bcast.Transmitter(SingleElevatorState_PORT, singleStateTx)
-	go bcast.Receiver(hallOrderCompleted_PORT, hallOrderCompletedRx)
+	go bcast.Receiver(HallOrderCompleted_PORT, hallOrderCompletedRx)
+	go bcast.Receiver(ActiveElevators_PORT, activeElevatorsChannelRx)
+	go bcast.Transmitter(ActiveElevators_PORT, activeElevatorsChannelTx)
 
 	// Channels for specific roles
 	hallBtnRx := make(chan elevio.ButtonEvent)      // MASTER - Receive hall orders from slaves
@@ -78,11 +82,8 @@ func main() {
 	// Section_START -- ROLES-SPECIFIC ACTIONS
 	switch role {
 	case "Master":
-		// We assume that all elevators are active
 
-		for i := 0; i < numElev; i++ {
-			activeElevators = append(activeElevators, i) // Initialize the activeElevators list
-		}
+		activeElevators = append(activeElevators, id) // Add the master to the activeElevators list
 
 		// Starting the Master Routine
 		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx)
@@ -143,6 +144,13 @@ func main() {
 
 	for { // MAIN LOOP
 		select {
+
+		case a := <-activeElevatorsChannelRx: // ACTIVE ELEVATORS UPDATE
+			lockMutexes(&mutex_activeElevators)
+			activeElevators = a
+			unlockMutexes(&mutex_activeElevators)
+
+			fmt.Printf("Active elevators: %v\n", activeElevators)
 
 		case a := <-drv_buttons: // BUTTON UPDATE
 			time.Sleep(30 * time.Millisecond) // Poll rate of the buttons
@@ -265,19 +273,9 @@ func main() {
 
 		case p := <-peerUpdateCh: // PEER UPDATE
 			// Convert the Peers, New & Lost from strings to structures
-			var mPeers []peers.ElevIdentity
-			for _, v := range p.Peers {
-				mPeers = append(mPeers, stringToElevIdentity(v))
-			}
-
-			var mNew peers.ElevIdentity
-			if p.New != "" {
-				mNew = stringToElevIdentity(p.New)
-			}
-			var mLost []peers.ElevIdentity
-			for _, v := range p.Lost {
-				mLost = append(mLost, stringToElevIdentity(v))
-			}
+			var mPeers = p.Peers
+			var mNew = p.New
+			var mLost = p.Lost
 
 			// Display the peer update
 			fmt.Printf("Peer update:\n")
@@ -288,29 +286,24 @@ func main() {
 			switch { // Lost or New Peer?
 			case mNew != (peers.ElevIdentity{}): // A new peer joins the network
 
-				mutex_activeElevators.Lock()
-				alreadyExists := isElevatorActive(mNew.Id) // Check if the elevator is already active
+				// The master updates the activeElevators array and sends it to the other elevators
+				if currentRole == "Master" {
+					mutex_activeElevators.Lock()
+					alreadyExists := isElevatorActive(mNew.Id) // Check if the elevator is already active
 
-				if !alreadyExists {
-					activeElevators = append(activeElevators, mNew.Id) // Add the elevator to the activeElevators list
+					if !alreadyExists {
+						activeElevators = append(activeElevators, mNew.Id) // Add the elevator to the activeElevators list
+					}
+
+					activeElevators = sortElevators(activeElevators) // Sort for the mapping to remain correct (see communication.go)
+					mutex_activeElevators.Unlock()
+
+					activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
 				}
-
-				activeElevators = sortElevators(activeElevators) // Sort for the mapping to remain correct (see communication.go)
-				mutex_activeElevators.Unlock()
-
-				fmt.Printf("Active elevators: %v\n", activeElevators) // ## PLACEHOLDER ##
 
 			case len(mLost) > 0: // A peer leaves the network
 
 				lostElevator := mLost[0] // We assume that we only have one down elevator at a time
-
-				alreadyExists := isElevatorActive(lostElevator.Id)
-				if alreadyExists {
-					removeElevator(lostElevator.Id) // Remove the elevator from the activeElevators list
-				}
-				activeElevators = sortElevators(activeElevators)
-
-				fmt.Printf("Active elevators: %v\n", activeElevators) // ## PLACEHOLDER ##
 
 				// Section_START -- CHANGING ROLES
 				newRole := currentRole
@@ -347,6 +340,22 @@ func main() {
 				}
 
 				fmt.Printf("My new current role: %s\n", currentRole) // ## PLACEHOLDER ##
+
+				// The new master updates the activeElevator list and sends it to the other elevators
+				if currentRole == "Master" {
+					mutex_activeElevators.Lock()
+					alreadyExists := isElevatorActive(lostElevator.Id)
+
+					if alreadyExists {
+						removeElevator(lostElevator.Id) // Remove the elevator from the activeElevators list
+					}
+
+					activeElevators = sortElevators(activeElevators)
+					mutex_activeElevators.Unlock()
+
+					activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
+				}
+
 				// Section_END -- CHANGING ROLES
 
 				// Section_START -- RE-ASSIGNING ORDERS

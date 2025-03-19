@@ -47,9 +47,7 @@ func removeElevator(elevatorId int) {
 	// Removes the id of the elevator from the list of active elevators
 	for i, id := range activeElevators {
 		if id == elevatorId {
-			mutex_activeElevators.Lock()
 			activeElevators = append(activeElevators[:i], activeElevators[i+1:]...)
-			mutex_activeElevators.Unlock()
 			break // Exit to avoid issues with changed indices (works because ids are unique)
 		}
 	}

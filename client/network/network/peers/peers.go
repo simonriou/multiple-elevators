@@ -9,16 +9,16 @@ import (
 	"time"
 )
 
-type PeerUpdate struct {
-	Peers []string
-	New   string
-	Lost  []string
-}
-
 // Define the struct to send
 type ElevIdentity struct {
 	Id   int    `json:"ID"`
 	Role string `json:"Role"`
+}
+
+type PeerUpdate struct {
+	Peers []ElevIdentity
+	New   ElevIdentity
+	Lost  []ElevIdentity
 }
 
 const interval = 15 * time.Millisecond
@@ -79,52 +79,70 @@ func Transmitter(port int, id int, roleChan <-chan string, transmitEnable <-chan
 }
 
 func Receiver(port int, peerUpdateCh chan<- PeerUpdate) {
-
 	var buf [1024]byte
-	var p PeerUpdate
-	lastSeen := make(map[string]time.Time)
+
+	lastSeen := make(map[int]time.Time)        // Track last seen time by Id
+	idToIdentity := make(map[int]ElevIdentity) // Track latest ElevIdentity by Id
 
 	conn := conn.DialBroadcastUDP(port)
 
 	for {
 		updated := false
+		var p PeerUpdate
 
 		conn.SetReadDeadline(time.Now().Add(interval))
-		n, _, _ := conn.ReadFrom(buf[0:])
+		n, _, err := conn.ReadFrom(buf[0:])
+		if err != nil {
+			// Read timeout; continue to check for lost peers
+		} else {
+			var receivedID ElevIdentity
+			err := json.Unmarshal(buf[:n], &receivedID)
+			if err == nil {
+				id := receivedID.Id
+				_, exists := lastSeen[id]
 
-		id := string(buf[:n])
+				// If this is a new peer (new ID)
+				if !exists {
+					p.New = receivedID
+					updated = true
+				} else {
+					p.New = ElevIdentity{} // Zero value if not new
+				}
 
-		// Adding new connection
-		p.New = ""
-		if id != "" {
-			if _, idExists := lastSeen[id]; !idExists {
-				p.New = id
-				updated = true
+				// Update the last seen time and identity for this id
+				lastSeen[id] = time.Now()
+				idToIdentity[id] = receivedID
 			}
-
-			lastSeen[id] = time.Now()
 		}
 
-		// Removing dead connection
-		p.Lost = make([]string, 0)
-		for k, v := range lastSeen {
-			if time.Now().Sub(v) > timeout {
+		// Detect lost peers
+		p.Lost = make([]ElevIdentity, 0)
+		now := time.Now()
+		for id, t := range lastSeen {
+			if now.Sub(t) > timeout {
 				updated = true
-				p.Lost = append(p.Lost, k)
-				delete(lastSeen, k)
+				// Append the last known identity before deletion
+				p.Lost = append(p.Lost, idToIdentity[id])
+				delete(lastSeen, id)
+				delete(idToIdentity, id)
 			}
 		}
 
-		// Sending update
 		if updated {
-			p.Peers = make([]string, 0, len(lastSeen))
-
-			for k, _ := range lastSeen {
-				p.Peers = append(p.Peers, k)
+			// Build the current peer list from idToIdentity
+			p.Peers = make([]ElevIdentity, 0, len(idToIdentity))
+			for _, identity := range idToIdentity {
+				p.Peers = append(p.Peers, identity)
 			}
 
-			sort.Strings(p.Peers)
-			sort.Strings(p.Lost)
+			// Optional: sort peers and lost for deterministic output
+			sort.Slice(p.Peers, func(i, j int) bool {
+				return p.Peers[i].Id < p.Peers[j].Id
+			})
+			sort.Slice(p.Lost, func(i, j int) bool {
+				return p.Lost[i].Id < p.Lost[j].Id
+			})
+
 			peerUpdateCh <- p
 		}
 	}
