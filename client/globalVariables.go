@@ -6,6 +6,9 @@ import (
 	"sync"
 )
 
+const numFloors = 4 // Number of floors
+const numElev = 3   // Number of elevators
+
 const ( // Ports
 	HallOrder_PORT           = 16120 + iota // Send hall orders (slave <-> master)
 	HallOrderRawBTN_PORT                    // Send hall orders (raw button presses)

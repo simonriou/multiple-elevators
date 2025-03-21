@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-const numFloors = 4 // Number of floors
-const numElev = 3   // Number of elevators
-
 func main() {
 	// Section_START -- FLAGS & ROLE
 	port, initialRole, id := getFlags()
