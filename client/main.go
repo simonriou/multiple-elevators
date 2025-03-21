@@ -9,7 +9,7 @@ import (
 )
 
 const numFloors = 4 // Number of floors
-const numElev = 2   // Number of elevators
+const numElev = 3   // Number of elevators
 
 func main() {
 	// Section_START -- FLAGS & ROLE
@@ -164,7 +164,7 @@ func main() {
 				hallBtnTx <- a // Send the hall order to the master
 
 			case a.Button == elevio.BT_Cab: // Else (it's a cab)
-				turnOnCabLights(Order{a.Floor, 0, cab}) 
+				turnOnCabLights(Order{a.Floor, 0, cab})
 
 				addOrder(a.Floor, 0, cab)                   // Add the cab order to the local elevatorOrders
 				sortAllOrders(&elevatorOrders, d, posArray) // Sort the orders
@@ -207,7 +207,7 @@ func main() {
 			lastFloor = a // Update the last floor
 
 			// Update & send the new state of the elevator to the master
-			
+
 			updateState(&d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
 
@@ -224,12 +224,16 @@ func main() {
 
 				unlockMutexes(&mutex_d)
 
-				// Remove the elevator from the activeElevators list
+				// The elevator removes himself from the activeElevators list and sends it to the other elevators
+				mutex_activeElevators.Lock()
 				alreadyExists := isElevatorActive(id)
+				mutex_activeElevators.Unlock()
 				if alreadyExists {
-					lockMutexes(&mutex_activeElevators)
+					mutex_activeElevators.Lock()
 					removeElevator(id)
-					unlockMutexes(&mutex_activeElevators)
+					mutex_activeElevators.Unlock()
+
+					activeElevatorsChannelTx <- activeElevators
 				}
 
 				// Re-assign the hall orders, i.e. send them again to the master
@@ -247,12 +251,17 @@ func main() {
 
 				elevio.SetStopLamp(false)
 
-				// Adds the elevator back to the activeElevators list
+				// The master adds himself to the activeElevators list and sends it to the other elevators
+				mutex_activeElevators.Lock()
 				alreadyExists := isElevatorActive(id)
+				mutex_activeElevators.Unlock()
 				if !alreadyExists {
-					lockMutexes(&mutex_activeElevators)
+					mutex_activeElevators.Lock()
 					activeElevators = append(activeElevators, id)
-					unlockMutexes(&mutex_activeElevators)
+					activeElevators = sortElevators(activeElevators)
+					mutex_activeElevators.Unlock()
+
+					activeElevatorsChannelTx <- activeElevators
 				}
 			}
 

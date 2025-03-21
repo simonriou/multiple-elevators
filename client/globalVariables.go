@@ -7,14 +7,14 @@ import (
 )
 
 const ( // Ports
-	HallOrder_PORT = 16120 + iota
-	HallOrderRawBTN_PORT
-	SingleElevatorState_PORT
-	AllStates_PORT
-	PeerChannel_PORT
-	BackupStates_PORT
-	HallOrderCompleted_PORT
-	ActiveElevators_PORT
+	HallOrder_PORT           = 16120 + iota // Send hall orders (slave <-> master)
+	HallOrderRawBTN_PORT                    // Send hall orders (raw button presses)
+	SingleElevatorState_PORT                // Send the state of a single elevator (master <-> slave)
+	AllStates_PORT                          // Send the states of all elevators (master <-> primary backup)
+	PeerChannel_PORT                        // Peer channel update port (all)
+	BackupStates_PORT                       // Backup states port (master <-> primary backup)
+	HallOrderCompleted_PORT                 // Hall order completed port (slave <-> master)
+	ActiveElevators_PORT                    // Active elevators port (all)
 )
 
 const (
