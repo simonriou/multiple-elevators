@@ -4,6 +4,7 @@ import (
 	"Driver-go/elevio"
 	"flag"
 	"fmt"
+	"os"
 )
 
 func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
@@ -41,6 +42,24 @@ func getFlags() (string, string, int) {
 	port := *port_raw
 	role = *role_raw
 	id := *id_raw
+
+	// If role is different that Regular, Master or PrimaryBackup, cancel the program
+	if role != "Regular" && role != "Master" && role != "PrimaryBackup" {
+		fmt.Println("Role must be either Regular, Master or PrimaryBackup")
+		os.Exit(1)
+	}
+
+	// If the ID is not an integer, cancel the program
+	if id < 0 {
+		fmt.Println("ID must be a positive integer")
+		os.Exit(1)
+	}
+
+	// If the port is not a number, cancel the program
+	if port == "" {
+		fmt.Println("Port must be a number")
+		os.Exit(1)
+	}
 
 	//fmt.Printf("Working on address: %v\n", "localhost:"+port)
 	//fmt.Printf("Role passed: %v\n", role)
