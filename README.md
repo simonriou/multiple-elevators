@@ -18,9 +18,9 @@ Each elevator client must have a dedicated elevator server. One 'elevator' is th
     ```bash
     ./SimElevatorServerMacOS --port=12120
     ```
-- Once all the servers are started, launch every elevator client. Although it is recommended to start the *Master* elevator first, the script will work no matter which elevator starts first. In case of a use with two elevators only, we **must have a *Master* and a *PrimaryBackup* at all times**. Two elevators **cannot have the same role**. Each elevator must have an **unique** ID which **must be an integer**. Upon launching a client, three parameters must be specified:
+- Once all the servers are started, launch every elevator client. Although it is recommended to start the *Master* elevator first, the script will work no matter which elevator starts first. In case of a use with two elevators only, we **must have a *Master* and a *PrimaryBackup* at all times**. Two elevators **cannot have the same role**. Each elevator must have an **unique** ID which **must be a positive integer**. Upon launching a client, three parameters must be specified:
     - The **port** on which it will communicate with the server
-    - The **ID** of the elevator, an integer, **unique**
+    - The **ID** of the elevator, a positive integer, **unique**
     - Its **role**, a string, **unique**, which can be **[*Regular*, *Master* or *PrimaryBackup*]**. The roles **are case-sensitive**.
 
     Here is an example of a correct syntax for the launch of elevator ID 0, role Master on port 12120:
