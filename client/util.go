@@ -153,6 +153,25 @@ func turnOffAllLights(current_order Order) {
 	}
 }
 
+func turnOnCabLights(orders ...Order) {
+	for _, order := range orders {
+		if order.OrderType == cab {
+			elevio.SetButtonLamp(BT_Cab, order.Floor, true)
+		}
+	}
+}
+
+func turnOnHallLights(orders ...Order) {
+	for _, order := range orders {
+		if order.OrderType == hall {
+			hallOrderDir := order.Direction
+			buttonType := elevDirectionToElevioButtonType(hallOrderDir)
+			elevio.SetButtonLamp(buttonType, order.Floor, true)
+		}
+		
+	}
+}
+
 func trackPosition(drv_floors2 chan int, drv_DirectionChange chan elevio.MotorDirection, d *elevio.MotorDirection) { // Track the position of the elevator
 	for {
 		select {
@@ -371,7 +390,8 @@ func relay(source chan int, consumers ...chan int) {
 }
 
 // This function will attend to the current order, it
-func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection) {
+func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection,
+	singleStateTx chan StateMsg, id int) {
 	current_order := Order{0, -1, 0}
 	for {
 		select {
@@ -389,6 +409,8 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				turnOffHallLights(current_order)
 
 				PopOrders()
+				updateState(d, current_order.Floor, elevatorOrders, &latestState)
+				singleStateTx <- StateMsg{id, latestState}
 
 				elevio.SetDoorOpenLamp(true)
 				StopBlocker(3000 * time.Millisecond)
@@ -430,6 +452,8 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				elevio.SetDoorOpenLamp(false)
 
 				PopOrders()
+				updateState(d, current_order.Floor, elevatorOrders, &latestState)
+				singleStateTx <- StateMsg{id, latestState}
 
 				// After deleting the relevant orders at our floor => find, if any, find the next currentOrder
 				if len(elevatorOrders) != 0 {

@@ -9,7 +9,7 @@ import (
 )
 
 const numFloors = 4 // Number of floors
-const numElev = 3   // Number of elevators
+const numElev = 2   // Number of elevators
 
 func main() {
 	// Section_START -- FLAGS & ROLE
@@ -139,7 +139,7 @@ func main() {
 
 	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
-	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange)
+	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange, singleStateTx, id)
 	// Section_END -- LOCAL INITIALIZATION
 
 	for { // MAIN LOOP
@@ -164,6 +164,7 @@ func main() {
 				hallBtnTx <- a // Send the hall order to the master
 
 			case a.Button == elevio.BT_Cab: // Else (it's a cab)
+				turnOnCabLights(Order{a.Floor, 0, cab}) 
 
 				addOrder(a.Floor, 0, cab)                   // Add the cab order to the local elevatorOrders
 				sortAllOrders(&elevatorOrders, d, posArray) // Sort the orders
@@ -180,10 +181,7 @@ func main() {
 
 		case a := <-hallOrderRx: // NEW ORDER FROM THE MASTER
 			// We turn up the lights on all slaves' servers
-			hallOrderDir := a.HallOrder.Direction
-			buttonType := elevDirectionToElevioButtonType(hallOrderDir)
-
-			elevio.SetButtonLamp(buttonType, a.HallOrder.Floor, true)
+			turnOnHallLights(a.HallOrder)
 
 			// Checking if we are the elevator that should take the order
 			if a.Id == id {
@@ -209,6 +207,7 @@ func main() {
 			lastFloor = a // Update the last floor
 
 			// Update & send the new state of the elevator to the master
+			
 			updateState(&d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
 

@@ -7,16 +7,6 @@ import (
 	"math"
 )
 
-type HRAInput struct {
-	HallRequests []Order
-	States       map[string]ElevState
-}
-
-type HallOrderMsg struct {
-	Id        int
-	HallOrder Order
-}
-
 func extractHallOrders(orders []Order) []Order {
 	var hallOrders []Order
 	for _, order := range orders {
