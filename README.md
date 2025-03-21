@@ -101,4 +101,4 @@ The system is composed of **three elevators**, each one with a different role: a
 - ~~Handle the role changes (main.go, peerLoss), peerUpdateChannel, if someone joins and someone disconnects~~
 - ~~Handle the re-assigning of the orders of a lost / stopped elevator~~
 - ~~Make functionality for the primary backup~~
-- Lights: display the union of the hallOrders, (low priority)
+- ~~Lights: display the union of the hallOrders, (low priority)~~
