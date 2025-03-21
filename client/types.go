@@ -8,6 +8,16 @@ type ElevState struct { // Struct for the state of the elevator
 	LocalRequests []Order // The requests of the elevator
 }
 
+type HRAInput struct {
+	HallRequests []Order
+	States       map[string]ElevState
+}
+
+type HallOrderMsg struct {
+	Id        int
+	HallOrder Order
+}
+
 type StateMsg struct { // Structure used to send states to the master
 	Id    int
 	State ElevState
