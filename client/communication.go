@@ -62,6 +62,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, 
 	hallOrderCompletedTx chan []Order, requestStateForCabRestorationRx chan int, stateForCabRestorationTx chan StateMsg) {
 
+	fmt.Print("New master routine started\n")
+
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
@@ -75,9 +77,17 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	// It will be updated whenever we receive a new state from the slaves
 	var allStates = <-newStatesRx
 
+	mutex_backup.Lock()
+	backupStates = allStates
+	mutex_backup.Unlock()
+
+	fmt.Printf("Backup states upon routine startup: %v\n", backupStates)
+
 	for {
 		select {
 		case a := <-hallBtnRx:
+
+			fmt.Print("Master received new hall order\n")
 
 			// Retrieves the information on the working elevators
 			var workingElevNb = len(activeElevators)
@@ -141,6 +151,11 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 			// Update our list of allStates with the new state and send new states list to the primary backup
 			allStates[a.Id] = a.State
+
+			mutex_backup.Lock()
+			backupStates = allStates
+			mutex_backup.Unlock()
+
 			backupStatesTx <- allStates
 		case a := <- requestStateForCabRestorationRx:
 			id := a

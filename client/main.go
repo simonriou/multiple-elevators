@@ -388,6 +388,8 @@ func main() {
 					// Get the lost orders
 					lostOrders := backupStates[lostElevator.Id].LocalRequests
 
+					fmt.Printf("Backup orders: %v\n", lostOrders)
+
 					// Re-assign the orders
 					for _, order := range lostOrders {
 						if order.OrderType == hall {
@@ -395,6 +397,7 @@ func main() {
 							// because it only takes into account the elevators that are inside of the activeElevators list
 							// and the lost elevator is not in it
 							hallBtnTx <- elevio.ButtonEvent{Button: elevio.ButtonType(order.Direction), Floor: order.Floor}
+							fmt.Print("Re-assigned hall order\n")
 						}
 					}
 				}
