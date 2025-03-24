@@ -18,6 +18,8 @@ const ( // Ports
 	BackupStates_PORT                       // Backup states port (master <-> primary backup)
 	HallOrderCompleted_PORT                 // Hall order completed port (slave <-> master)
 	ActiveElevators_PORT                    // Active elevators port (all)
+	requestStateForCabRestoration_PORT      // Requesting allstates from MasterRoutine
+	stateForCabRestoration_PORT             // Allstates from MasterRoutine to Master
 )
 
 const (

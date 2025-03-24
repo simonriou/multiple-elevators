@@ -18,6 +18,11 @@ type HallOrderMsg struct {
 	HallOrder Order
 }
 
+type CabOrderMsg struct {
+	Id int
+	CabOrder Order
+}
+
 type StateMsg struct { // Structure used to send states to the master
 	Id    int
 	State ElevState

@@ -9,6 +9,7 @@ import (
 
 func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
 	drv_finishedInitialization := make(chan bool)
+	turnOffAllLights()
 	go func() {
 		elevio.SetMotorDirection(d)
 		for {

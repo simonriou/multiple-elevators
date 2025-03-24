@@ -48,6 +48,8 @@ func main() {
 	hallOrderCompletedRx := make(chan []Order)   // ALL - Confirm hall order (for lights)
 	activeElevatorsChannelTx := make(chan []int) // ALL - The channel on which we send the active elevators list
 	activeElevatorsChannelRx := make(chan []int) // ALL - The channel on which we receive the active elevators list
+	requestStateForCabRestorationTx := make(chan int) // ALL - Send cabOrder restoration request for specified id
+	stateForCabRestorationRx := make(chan StateMsg)  // ALL - Receive cabOrder along with an id to single elevators, (restoration)
 
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
 	go bcast.Transmitter(HallOrderRawBTN_PORT, hallBtnTx)
@@ -55,6 +57,8 @@ func main() {
 	go bcast.Receiver(HallOrderCompleted_PORT, hallOrderCompletedRx)
 	go bcast.Receiver(ActiveElevators_PORT, activeElevatorsChannelRx)
 	go bcast.Transmitter(ActiveElevators_PORT, activeElevatorsChannelTx)
+	go bcast.Transmitter(requestStateForCabRestoration_PORT, requestStateForCabRestorationTx)
+	go bcast.Receiver(stateForCabRestoration_PORT, stateForCabRestorationRx)
 
 	// Channels for specific roles
 	hallBtnRx := make(chan elevio.ButtonEvent)      // MASTER - Receive hall orders from slaves
@@ -64,7 +68,10 @@ func main() {
 	backupStatesTx := make(chan [numElev]ElevState) // MASTER - Send all states to backup
 	newStatesRx := make(chan [numElev]ElevState)    // MASTER - Receive all NEW states from backup
 	newStatesTx := make(chan [numElev]ElevState)    // BACKUP - Send all states to the NEW master
-	hallOrderCompletedTx := make(chan []Order)
+	hallOrderCompletedTx := make(chan []Order)                // Master - Send completed hallorder(s) to single elevators
+	requestStateForCabRestorationRx := make(chan int)         // Master - Receive cabOr
+	stateForCabRestorationTx := make(chan StateMsg)           // Master - Send cabOrder along with an id to single elevators, (restoration)
+
 
 	go bcast.Transmitter(BackupStates_PORT, newStatesTx) // LOCAL - Used to send the states to the NEW master (used in role changes)
 
@@ -73,6 +80,8 @@ func main() {
 	_ = singleStateRx
 	_ = backupStatesTx
 	_ = newStatesRx
+	_ = requestStateForCabRestorationRx
+	_ = stateForCabRestorationTx
 
 	// Section_END -- CHANNELS
 
@@ -83,7 +92,8 @@ func main() {
 		activeElevators = append(activeElevators, id) // Add the master to the activeElevators list
 
 		// Starting the Master Routine
-		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx)
+		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx, 
+			             requestStateForCabRestorationRx, stateForCabRestorationTx)
 
 		// This is the initial states of the elevators
 		var allStates [numElev]ElevState
@@ -150,11 +160,14 @@ func main() {
 			fmt.Printf("Active elevators: %v\n", activeElevators)
 
 		case a := <-drv_buttons: // BUTTON UPDATE
-			time.Sleep(30 * time.Millisecond) // Poll rate of the buttons
+			time.Sleep(30 * time.Millisecond) // More than the poll rate of the buttons
 
-			// If it's a hall order, forwards it to the master
+			/* if a.Button == elevio.BT_Cab {
+				turnOnCabLights(Order{a.Floor, 0, cab})
+			} */
+
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
-
+			// If it's a hall order, forwards it to the master
 			switch {
 			case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 
@@ -304,6 +317,11 @@ func main() {
 					mutex_activeElevators.Unlock()
 
 					activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
+
+					// Send request to MasterRoutine to retrieve the state last state of the lost elevator
+					requestStateForCabRestorationRx <- mNew.Id
+					fmt.Printf("Sent request to MasterRoutine\n")
+								
 				}
 
 			case len(mLost) > 0: // A peer leaves the network
@@ -327,7 +345,8 @@ func main() {
 					case "PrimaryBackup":
 
 						newRole = "Master"
-						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx)
+						go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
+							             requestStateForCabRestorationRx, stateForCabRestorationTx)
 						newStatesTx <- backupStates // Sending the backupStates to the new master
 
 					}
@@ -384,6 +403,35 @@ func main() {
 			}
 		case a := <-hallOrderCompletedRx:
 			turnOffHallLights(a...)
+		case a := <- stateForCabRestorationRx:
+			stateMsg_lostElev := a
+			if stateMsg_lostElev.Id == id {
+				// Get the lost orders
+				lostOrders := stateMsg_lostElev.State.LocalRequests
+
+				// Todo: create a list of cab orders instead, so that there won't be a mutex issue
+				
+				// Re-assign the orders
+				for _, order := range lostOrders {
+					if order.OrderType == cab {
+						// Add the cab orders to our local elevatorOrders
+						lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+						turnOnCabLights(Order{order.Floor, 0, cab})
+
+						addOrder(order.Floor, 0, cab)                   // Add the cab order to the local elevatorOrders
+						sortAllOrders(&elevatorOrders, d, posArray) // Sort the orders
+						first_element := elevatorOrders[0]
+
+						// Update & send the new state of the elevator to the master
+						updateState(&d, lastFloor, elevatorOrders, &latestState)
+						singleStateTx <- StateMsg{id, latestState}
+
+						drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
+						unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+					}
+				}		
+			}
+			
 		}
 
 	}

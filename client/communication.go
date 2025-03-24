@@ -59,8 +59,8 @@ func findUniqueOrders(oldOrders, newOrders []Order) []Order {
 }
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
-	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
-	hallOrderCompletedTx chan []Order) {
+	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, 
+	hallOrderCompletedTx chan []Order, requestStateForCabRestorationRx chan int, stateForCabRestorationTx chan StateMsg) {
 
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
@@ -68,6 +68,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	go bcast.Transmitter(AllStates_PORT, backupStatesTx)
 	go bcast.Receiver(BackupStates_PORT, newStatesRx)
 	go bcast.Transmitter(HallOrderCompleted_PORT, hallOrderCompletedTx)
+	go bcast.Receiver(requestStateForCabRestoration_PORT, requestStateForCabRestorationRx)
+	go bcast.Transmitter(stateForCabRestoration_PORT, stateForCabRestorationTx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -140,7 +142,13 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Update our list of allStates with the new state and send new states list to the primary backup
 			allStates[a.Id] = a.State
 			backupStatesTx <- allStates
+		case a := <- requestStateForCabRestorationRx:
+			id := a
+			lastState_lostElev := allStates[id]
+			stateForCabRestorationTx <- StateMsg{id, lastState_lostElev}
+			fmt.Printf("Sent state to elevator with id: %v\n", id)
 		}
+		
 	}
 }
 
