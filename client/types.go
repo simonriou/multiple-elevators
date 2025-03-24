@@ -19,8 +19,8 @@ type HallOrderMsg struct {
 }
 
 type CabOrderMsg struct {
-	Id int
-	CabOrder Order
+	Id        int
+	CabOrders []Order
 }
 
 type StateMsg struct { // Structure used to send states to the master

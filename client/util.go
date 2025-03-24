@@ -168,7 +168,7 @@ func turnOnHallLights(orders ...Order) {
 			buttonType := elevDirectionToElevioButtonType(hallOrderDir)
 			elevio.SetButtonLamp(buttonType, order.Floor, true)
 		}
-		
+
 	}
 }
 
@@ -436,8 +436,12 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				}
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+			fmt.Print("Successfully unlocked mutex in attendToSpecificOrder\n")
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
+			fmt.Print("Waiting on mutex lock in attendToSpecificOrder\n")
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+
+			fmt.Print("Received order in attendToSpecificOrder\n")
 
 			current_order = a
 			current_position := extractPos()

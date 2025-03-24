@@ -59,8 +59,9 @@ func findUniqueOrders(oldOrders, newOrders []Order) []Order {
 }
 
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
-	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, 
-	hallOrderCompletedTx chan []Order, requestStateForCabRestorationRx chan int, stateForCabRestorationTx chan StateMsg) {
+	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
+	hallOrderCompletedTx chan []Order,
+	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int) {
 
 	fmt.Print("New master routine started\n")
 
@@ -70,8 +71,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	go bcast.Transmitter(AllStates_PORT, backupStatesTx)
 	go bcast.Receiver(BackupStates_PORT, newStatesRx)
 	go bcast.Transmitter(HallOrderCompleted_PORT, hallOrderCompletedTx)
-	go bcast.Receiver(requestStateForCabRestoration_PORT, requestStateForCabRestorationRx)
-	go bcast.Transmitter(stateForCabRestoration_PORT, stateForCabRestorationTx)
+	go bcast.Transmitter(RetrieveCabOrders_PORT, retrieveCabOrdersTx)
+	go bcast.Receiver(AskForCabOrders_PORT, askForCabOrdersRx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -157,13 +158,22 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			mutex_backup.Unlock()
 
 			backupStatesTx <- allStates
-		case a := <- requestStateForCabRestorationRx:
-			id := a
-			lastState_lostElev := allStates[id]
-			stateForCabRestorationTx <- StateMsg{id, lastState_lostElev}
-			fmt.Printf("Sent state to elevator with id: %v\n", id)
+
+		case id := <-askForCabOrdersRx:
+			fmt.Print("\nMaster received request for cab orders\n")
+			fmt.Printf("Current backup states: %v\n", backupStates)
+			// Master sends cab orders to the new elevator
+			lostCabOrders := []Order{}
+			for _, order := range backupStates[id].LocalRequests {
+				if order.OrderType == cab {
+					lostCabOrders = append(lostCabOrders, order)
+				}
+			}
+
+			// Send the cab orders to the new elevator
+			retrieveCabOrdersTx <- CabOrderMsg{id, lostCabOrders}
 		}
-		
+
 	}
 }
 
