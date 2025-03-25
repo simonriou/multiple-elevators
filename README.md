@@ -6,7 +6,7 @@ Latest update: March, 18th
 # Usage
 Here is a detailed explaination on how to use the multiple elevators repository.
 ## First launch
-Each elevator client must have a dedicated elevator server. One 'elevator' is thus composed of either a simulator (`./SimElevatorServer`, `./SimElevatorServer.exe`, `./SimElevatorServerMacOS`) OR hardware server (`./elevatorserver`) AND of a client (`/client/`).In the future, 'server' will refer to either the hardware server or the simulator. The recommended process to launch multiple is the following:
+Each elevator client must have a dedicated elevator server. One 'elevator' is thus composed of either a simulator (in the `./binaries` folder, `simElevatorServer`, `simElevatorServer.exe`, `simElevatorServerMacOS`) OR hardware server (`elevatorServer`) AND of a client (`./binaries` folder, `elevatorClient`, `elevatorClientMacOS` or `elevatorClientWindows.exe`). In the future, 'server' will refer to either the hardware server or the simulator. The recommended process to launch multiple is the following:
 
 - Start with executing **every server**. The first variables declared in `globalVariables.go` must be adjusted to fit the number of elevators you will run. You must also specify the port on which the server and the client will communicate. Each pair of elevator / server must operate on a **different port**. They all must be **different than the ports defined** inside of `globalVariables.go`. An example would be
     - First pair of elevator / server operating on `12120`
@@ -26,10 +26,10 @@ Each elevator client must have a dedicated elevator server. One 'elevator' is th
     Here is an example of a correct syntax for the launch of elevator ID 0, role Master on port 12120:
 
     ```bash
-    go run . --port=12120 --id=0 --role=Master
+    ./elevatorClient --port=12120 --id=0 --role=Master
     ```
 
-    Note that the command must be run inside of the `/client/` directory, and that the order in which the parameters are passed is of no importance.
+    Note that the command must be run inside of the `./binairies` directory, and that the order in which the parameters are passed is of no importance.
 
 ## Re-launch after shutdown (important)
 In case of the restart of an elevator after it went down, there is something to consider: whenever an elevator goes down, the two remaining ones change roles so that there always are *Master* and *PrimaryBackup* elevators at all times. This means that **if a *Master* or a *PrimaryBackup* goes down, we must restart it as a *Regular*** elevator, because another elevator will have taken his role by then. However **its ID must remain unchanged**.
@@ -97,8 +97,3 @@ The system is composed of **three elevators**, each one with a different role: a
     - Lost peer: It is assumed that **only one elevator can be down at a time**. We begin by removing the lost elevator from `activeElevators`. Then we handle the role changes. If the *Master* goes down, then *PrimaryBackup* becomes *Master* and *Regular* becomes *PrimaryBackup*. If the *PrimaryBackup* goes down, then *Regular* becomes *PrimaryBackup*. We also launch the corresponding routines after assigning the new roles. Finally, we re-assign the hall orders of the lost elevators (same logic as the stop button case).
 
 # To-Do List
-- Get the cab orders backup after a shutdown
-- ~~Handle the role changes (main.go, peerLoss), peerUpdateChannel, if someone joins and someone disconnects~~
-- ~~Handle the re-assigning of the orders of a lost / stopped elevator~~
-- ~~Make functionality for the primary backup~~
-- ~~Lights: display the union of the hallOrders, (low priority)~~
