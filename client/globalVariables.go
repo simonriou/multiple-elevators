@@ -24,8 +24,8 @@ const ( // Ports
 
 const (
 	BT_HallUp   ButtonType = 0
-	BT_HallDown            = 1
-	BT_Cab                 = 2
+	BT_HallDown ButtonType = 1
+	BT_Cab      ButtonType = 2
 )
 
 const (

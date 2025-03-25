@@ -101,23 +101,7 @@ func main() {
 
 		// This is the initial states of the elevators
 		var allStates [numElev]ElevState
-		uninitializedOrderArray := []Order{
-			{
-				Floor:     0,
-				Direction: up,
-				OrderType: hall,
-			},
-		}
-		uninitialized_ElevState := ElevState{
-			Behavior:      "Uninitialized",
-			Floor:         -2,
-			Direction:     "Uninitialized",
-			LocalRequests: uninitializedOrderArray,
-		}
-
-		for i := range allStates {
-			allStates[i] = uninitialized_ElevState
-		}
+		allStates = initAllStates(allStates)
 
 		// Send the initial states to the master
 		newStatesRx <- allStates
@@ -171,10 +155,6 @@ func main() {
 
 		case a := <-drv_buttons: // BUTTON UPDATE
 			time.Sleep(30 * time.Millisecond) // More than the poll rate of the buttons
-
-			/* if a.Button == elevio.BT_Cab {
-				turnOnCabLights(Order{a.Floor, 0, cab})
-			} */
 
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 			// If it's a hall order, forwards it to the master
@@ -271,7 +251,7 @@ func main() {
 
 				elevio.SetStopLamp(false)
 
-				// The master adds himself to the activeElevators list and sends it to the other elevators
+				// The elevator adds himself to the activeElevators list and sends it to the other elevators
 				mutex_activeElevators.Lock()
 				alreadyExists := isElevatorActive(id)
 				mutex_activeElevators.Unlock()
@@ -300,7 +280,6 @@ func main() {
 			}
 
 		case p := <-peerUpdateCh: // PEER UPDATE
-			// Convert the Peers, New & Lost from strings to structures
 			var mPeers = p.Peers
 			var mNew = p.New
 			var mLost = p.Lost

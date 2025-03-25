@@ -178,14 +178,11 @@ func PrimaryBackupRoutine(backupStatesRx chan [numElev]ElevState) {
 	// To-Do: update the global backupStates
 	go bcast.Receiver(AllStates_PORT, backupStatesRx) // Used to receive the states from the master
 
-	for {
-		select {
-		case a := <-backupStatesRx:
-			// Update the global backupStates
-			mutex_backup.Lock()
-			backupStates = a
-			mutex_backup.Unlock()
-		}
+	for a := range backupStatesRx {
+		// Update the global backupStates
+		mutex_backup.Lock()
+		backupStates = a
+		mutex_backup.Unlock()
 	}
 
 }

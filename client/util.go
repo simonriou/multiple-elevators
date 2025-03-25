@@ -2,12 +2,32 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"Network-go/network/peers"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 )
+
+func initAllStates(allStates [numElev]ElevState) [numElev]ElevState {
+	uninitializedOrderArray := []Order{
+		{
+			Floor:     0,
+			Direction: up,
+			OrderType: hall,
+		},
+	}
+	uninitialized_ElevState := ElevState{
+		Behavior:      "Uninitialized",
+		Floor:         -2,
+		Direction:     "Uninitialized",
+		LocalRequests: uninitializedOrderArray,
+	}
+
+	for i := range allStates {
+		allStates[i] = uninitialized_ElevState
+	}
+
+	return allStates
+}
 
 func sortElevators(activeElevators []int) []int {
 	// Sort the active elevators
@@ -51,15 +71,6 @@ func removeElevator(elevatorId int) {
 			break // Exit to avoid issues with changed indices (works because ids are unique)
 		}
 	}
-}
-
-func stringToElevIdentity(data string) peers.ElevIdentity { // Convert a string to an ElevIdentity struct
-	var msg peers.ElevIdentity
-	err := json.Unmarshal([]byte(data), &msg)
-	if err != nil {
-		fmt.Println("Error: ", err)
-	}
-	return msg
 }
 
 func btnPressToOrder(btn elevio.ButtonEvent) Order { // Convert a button press to an order for hall orders
@@ -156,7 +167,7 @@ func turnOffAllLights() {
 func turnOnCabLights(orders ...Order) {
 	for _, order := range orders {
 		if order.OrderType == cab {
-			elevio.SetButtonLamp(BT_Cab, order.Floor, true)
+			elevio.SetButtonLamp(elevio.ButtonType(BT_Cab), order.Floor, true)
 		}
 	}
 }
@@ -233,34 +244,6 @@ func trackPosition(drv_floors2 chan int, drv_DirectionChange chan elevio.MotorDi
 		}
 
 	}
-}
-
-// Helper function to convert direction to string
-func directionToString(direction OrderDirection) string {
-	if direction == up {
-		return "Up"
-	}
-	return "Down"
-}
-
-// Helper function to convert orderType to string
-func orderTypeToString(orderType OrderType) string {
-	if orderType == hall {
-		return "Hall"
-	}
-	return "Cab"
-}
-
-func printOrders(orders []Order) {
-	// Iterate through each order and print its details
-	for i, order := range orders {
-		fmt.Printf("Order #%d: Floor %d, Direction %s, OrderType %s\n",
-			i+1, order.Floor, directionToString(order.Direction), orderTypeToString(order.OrderType))
-	}
-}
-
-func printElevatorOrders(elevatorOrders []Order) {
-	printOrders(elevatorOrders)
 }
 
 func reverseDirection(d *elevio.MotorDirection) { // Reverse the direction of the elevator
@@ -385,116 +368,6 @@ func relay(source chan int, consumers ...chan int) {
 		value := <-source
 		for _, consumer := range consumers {
 			consumer <- value // Send to each consumer
-		}
-	}
-}
-
-// This function will attend to the current order, it
-func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection,
-	singleStateTx chan StateMsg, id int) {
-	current_order := Order{0, -1, 0}
-	for {
-		select {
-		case a := <-consumer2drv_floors: // Triggers when we arrive at a new floor
-			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
-			if a == current_order.Floor { // Check if our new floor is equal to the floor of the order
-				// Set direction to stop and delete relevant orders from elevatorOrders
-
-				*d = elevio.MD_Stop
-				elevio.SetMotorDirection(*d)
-
-				// Clear the cab lights for this order, (the removal of hallOrders is sent through the MasterRoutine and back to all single elevators)
-				turnOffCabLights(current_order)
-				// In case we lose connection to the masterRoutine
-				turnOffHallLights(current_order)
-
-				PopOrders()
-				updateState(d, current_order.Floor, elevatorOrders, &latestState)
-				singleStateTx <- StateMsg{id, latestState}
-
-				elevio.SetDoorOpenLamp(true)
-				StopBlocker(3000 * time.Millisecond)
-				elevio.SetDoorOpenLamp(false)
-
-				// After deleting the relevant orders at our floor => find, if any, the next currentOrder
-				if len(elevatorOrders) != 0 {
-					current_order = elevatorOrders[0]
-					prev_direction := *d
-					changeDirBasedOnCurrentOrder(d, current_order, float32(a))
-					new_direction := *d
-
-					elevio.SetMotorDirection(*d)
-
-					// Communicate with trackPosition if our direction was altered
-					unlockMutexes(&mutex_d, &mutex_posArray)
-					if prev_direction != new_direction {
-						drv_DirectionChange <- new_direction
-					}
-					lockMutexes(&mutex_d, &mutex_posArray)
-				} else {
-					turnOffAllLights()
-				}
-			}
-			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
-		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
-			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
-
-			current_order = a
-			current_position := extractPos()
-			switch {
-			// Case 1: HandleOrders sent a new Order and it is at the same floor
-			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
-				turnOffCabLights(current_order) // Clear the cab lights for this order
-				turnOffHallLights(current_order)
-
-				PopOrders()
-				updateState(d, current_order.Floor, elevatorOrders, &latestState)
-				singleStateTx <- StateMsg{id, latestState}
-
-				elevio.SetDoorOpenLamp(true)
-				StopBlocker(3000 * time.Millisecond)
-				elevio.SetDoorOpenLamp(false)
-
-				// After deleting the relevant orders at our floor => find, if any, find the next currentOrder
-				if len(elevatorOrders) != 0 {
-					current_order = elevatorOrders[0]
-					prev_direction := *d
-					changeDirBasedOnCurrentOrder(d, current_order, float32(current_order.Floor))
-					new_direction := *d
-
-					elevio.SetMotorDirection(*d)
-
-					// Communicate with trackPosition if our direction was altered
-					unlockMutexes(&mutex_d, &mutex_posArray)
-					if prev_direction != new_direction {
-						drv_DirectionChange <- new_direction
-					}
-					lockMutexes(&mutex_d, &mutex_posArray)
-				} else {
-					turnOffAllLights()
-				}
-
-				// Case 2: HandleOrders sent a new Order and it is at a different floor
-			case current_position != float32(current_order.Floor):
-				current_position := extractPos()
-
-				prev_direction := *d
-				changeDirBasedOnCurrentOrder(d, current_order, current_position)
-				new_direction := *d
-
-				elevio.SetDoorOpenLamp(false) // Just in case
-
-				elevio.SetMotorDirection(*d)
-
-				// Communicate with trackPosition if our direction was altered
-				unlockMutexes(&mutex_d, &mutex_posArray)
-				if prev_direction != new_direction {
-					drv_DirectionChange <- new_direction
-				}
-				lockMutexes(&mutex_d, &mutex_posArray)
-			}
-
-			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		}
 	}
 }

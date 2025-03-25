@@ -3,6 +3,7 @@ package main
 import (
 	"Driver-go/elevio"
 	"math"
+	"time"
 )
 
 func findHighestOrders(elevatorOrders []Order) []Order {
@@ -52,6 +53,116 @@ func orderInContainer(order_slice []Order, order_ Order) bool {
 		}
 	}
 	return false
+}
+
+// This function will attend to the current order, it
+func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection,
+	singleStateTx chan StateMsg, id int) {
+	current_order := Order{0, -1, 0}
+	for {
+		select {
+		case a := <-consumer2drv_floors: // Triggers when we arrive at a new floor
+			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+			if a == current_order.Floor { // Check if our new floor is equal to the floor of the order
+				// Set direction to stop and delete relevant orders from elevatorOrders
+
+				*d = elevio.MD_Stop
+				elevio.SetMotorDirection(*d)
+
+				// Clear the cab lights for this order, (the removal of hallOrders is sent through the MasterRoutine and back to all single elevators)
+				turnOffCabLights(current_order)
+				// In case we lose connection to the masterRoutine
+				turnOffHallLights(current_order)
+
+				PopOrders()
+				updateState(d, current_order.Floor, elevatorOrders, &latestState)
+				singleStateTx <- StateMsg{id, latestState}
+
+				elevio.SetDoorOpenLamp(true)
+				StopBlocker(3000 * time.Millisecond)
+				elevio.SetDoorOpenLamp(false)
+
+				// After deleting the relevant orders at our floor => find, if any, the next currentOrder
+				if len(elevatorOrders) != 0 {
+					current_order = elevatorOrders[0]
+					prev_direction := *d
+					changeDirBasedOnCurrentOrder(d, current_order, float32(a))
+					new_direction := *d
+
+					elevio.SetMotorDirection(*d)
+
+					// Communicate with trackPosition if our direction was altered
+					unlockMutexes(&mutex_d, &mutex_posArray)
+					if prev_direction != new_direction {
+						drv_DirectionChange <- new_direction
+					}
+					lockMutexes(&mutex_d, &mutex_posArray)
+				} else {
+					turnOffAllLights()
+				}
+			}
+			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
+			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+
+			current_order = a
+			current_position := extractPos()
+			switch {
+			// Case 1: HandleOrders sent a new Order and it is at the same floor
+			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
+				turnOffCabLights(current_order) // Clear the cab lights for this order
+				turnOffHallLights(current_order)
+
+				PopOrders()
+				updateState(d, current_order.Floor, elevatorOrders, &latestState)
+				singleStateTx <- StateMsg{id, latestState}
+
+				elevio.SetDoorOpenLamp(true)
+				StopBlocker(3000 * time.Millisecond)
+				elevio.SetDoorOpenLamp(false)
+
+				// After deleting the relevant orders at our floor => find, if any, find the next currentOrder
+				if len(elevatorOrders) != 0 {
+					current_order = elevatorOrders[0]
+					prev_direction := *d
+					changeDirBasedOnCurrentOrder(d, current_order, float32(current_order.Floor))
+					new_direction := *d
+
+					elevio.SetMotorDirection(*d)
+
+					// Communicate with trackPosition if our direction was altered
+					unlockMutexes(&mutex_d, &mutex_posArray)
+					if prev_direction != new_direction {
+						drv_DirectionChange <- new_direction
+					}
+					lockMutexes(&mutex_d, &mutex_posArray)
+				} else {
+					turnOffAllLights()
+				}
+
+				// Case 2: HandleOrders sent a new Order and it is at a different floor
+			case current_position != float32(current_order.Floor):
+				current_position := extractPos()
+
+				prev_direction := *d
+				changeDirBasedOnCurrentOrder(d, current_order, current_position)
+				new_direction := *d
+
+				elevio.SetDoorOpenLamp(false) // Just in case
+
+				elevio.SetMotorDirection(*d)
+
+				// Communicate with trackPosition if our direction was altered
+				unlockMutexes(&mutex_d, &mutex_posArray)
+				if prev_direction != new_direction {
+					drv_DirectionChange <- new_direction
+				}
+				lockMutexes(&mutex_d, &mutex_posArray)
+			}
+
+			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+		}
+	}
 }
 
 func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posArray [2*numFloors - 1]bool) ([]Order, []Order, elevio.MotorDirection) {
@@ -191,10 +302,13 @@ func sortAllOrders(elevatorOrders *[]Order, d elevio.MotorDirection, posArray [2
 	// Creating the datatypes specfic to our function
 	copy_posArray := posArray
 	relevantOrders := []Order{}
+	_ = relevantOrders
 	irrelevantOrders := []Order{}
+	_ = irrelevantOrders
 
 	// Start - first section
 	firstSection := []Order{}
+	_ = firstSection
 
 	irrelevantOrders = *elevatorOrders
 	relevantOrders, irrelevantOrders, d = sortOrdersInDirection(irrelevantOrders, d, copy_posArray)
@@ -208,6 +322,7 @@ func sortAllOrders(elevatorOrders *[]Order, d elevio.MotorDirection, posArray [2
 
 	// Start - Second section
 	secondSection := []Order{}
+	_ = secondSection
 	reverseDirection(&d)
 	updatePosArray(d, &copy_posArray)
 
@@ -222,6 +337,7 @@ func sortAllOrders(elevatorOrders *[]Order, d elevio.MotorDirection, posArray [2
 
 	// Start - Third section
 	thirdSection := []Order{}
+	_ = thirdSection
 	reverseDirection(&d)
 	updatePosArray(d, &copy_posArray)
 	relevantOrders, _, _ = sortOrdersInDirection(irrelevantOrders, d, copy_posArray)
