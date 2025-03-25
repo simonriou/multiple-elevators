@@ -16,13 +16,18 @@ func main() {
 
 	currentRole := initialRole
 
-	// Section_START -- CHANNELS
+	// Section_START -- NETWORK INITIALIZATION
 	peerUpdateCh := make(chan peers.PeerUpdate)                           // Updates from peers
 	peerTxEnable := make(chan bool)                                       // Enables/disables the transmitter
 	go peers.Transmitter(PeerChannel_PORT, id, roleChannel, peerTxEnable) // Broadcast role
 	roleChannel <- currentRole
 	go peers.Receiver(PeerChannel_PORT, peerUpdateCh) // Listen for updates
 
+	// Check if the ID of the elevator is valid
+
+	// Section_END -- NETWORK INITIALIZATION
+
+	// Section_START -- CHANNELS
 	// Initialize the elevator
 	elevio.Init("localhost:"+port, numFloors)
 
