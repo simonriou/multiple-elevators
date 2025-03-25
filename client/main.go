@@ -158,7 +158,9 @@ func main() {
 
 	// Section_END -- LOCAL INITIALIZATION
 
-	//time.Sleep(40 * time.Microsecond)
+	time.Sleep(40 * time.Microsecond)
+
+	updateState(&d, 0, elevatorOrders, &latestState)
 
 	for { // MAIN LOOP
 		select {
