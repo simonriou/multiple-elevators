@@ -154,13 +154,10 @@ func main() {
 	askForCabOrdersTx <- id
 	// Secton_END -- RETRIEVE CAB ORDERS
 
-	updateState(&d, 0, elevatorOrders, &latestState)
+	updateState(&d, lastFloor, elevatorOrders, &latestState)
+	singleStateTx <- StateMsg{id, latestState}
 
 	// Section_END -- LOCAL INITIALIZATION
-
-	time.Sleep(40 * time.Microsecond)
-
-	updateState(&d, 0, elevatorOrders, &latestState)
 
 	for { // MAIN LOOP
 		select {

@@ -117,14 +117,8 @@ func updateState(d *elevio.MotorDirection, lastFloor int, elevatorOrders []Order
 	defer mutex_state.Unlock()
 
 	latestState.Behavior = determineBehaviour(d)
-
-	fmt.Printf("Behavior: %v\n", latestState.Behavior)
-
 	latestState.Floor = lastFloor
 	latestState.Direction = motorDirectionToString(*d)
-
-	fmt.Printf("Direction: %v\n", latestState.Direction)
-
 	latestState.LocalRequests = elevatorOrders
 }
 
