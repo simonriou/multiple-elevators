@@ -2,32 +2,10 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"Network-go/network/peers"
 	"flag"
 	"fmt"
 	"os"
 )
-
-func isIDValid(id int, elevators peers.PeerUpdate) bool {
-	newElev := elevators.New
-	oldElevs := elevators.Peers
-	// Remove the new elevator from the list of old elevators
-	for i, elev := range oldElevs {
-		if elev == newElev {
-			oldElevs = append(oldElevs[:i], oldElevs[i+1:]...)
-			break
-		}
-	}
-
-	// Check if the ID is already taken
-	for _, elev := range oldElevs {
-		if elev.Id == id {
-			return false
-		}
-	}
-
-	return true
-}
 
 func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
 	drv_finishedInitialization := make(chan bool)

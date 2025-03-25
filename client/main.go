@@ -122,8 +122,6 @@ func main() {
 		// Send the initial states to the master
 		newStatesRx <- allStates
 
-		fmt.Print("a\n")
-
 	case "PrimaryBackup":
 
 		// Starting the PrimaryBackup Routine
@@ -131,12 +129,6 @@ func main() {
 
 	}
 	// Section_END -- ROLES-SPECIFIC ACTIONS
-
-	// Section_START -- RERTIEVE CAB ORDERS
-	// We send our ID to the master to ask for the cab orders
-	askForCabOrdersTx <- id
-	fmt.Print("Sent ask for cab orders\n")
-	// Secton_END -- RETRIEVE CAB ORDERS
 
 	// Section_START -- LOCAL INITIALIZATION
 	var d elevio.MotorDirection = elevio.MD_Down // Setting the initial direction of the elevator
@@ -149,7 +141,6 @@ func main() {
 	go relay(drv_floors, consumer1drv_floors, consumer2drv_floors)
 
 	d = elevio.MD_Stop // Update d so that states are accurate
-	updateState(&d, 0, elevatorOrders, &latestState)
 
 	// Send the initial state of the elevator to the master
 	singleStateTx <- StateMsg{id, latestState}
@@ -157,7 +148,17 @@ func main() {
 	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
 	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange, singleStateTx, id)
+
+	// Section_START -- RERTIEVE CAB ORDERS
+	// We send our ID to the master to ask for the cab orders
+	askForCabOrdersTx <- id
+	// Secton_END -- RETRIEVE CAB ORDERS
+
+	updateState(&d, 0, elevatorOrders, &latestState)
+
 	// Section_END -- LOCAL INITIALIZATION
+
+	//time.Sleep(40 * time.Microsecond)
 
 	for { // MAIN LOOP
 		select {
@@ -394,8 +395,6 @@ func main() {
 					// Get the lost orders
 					lostOrders := backupStates[lostElevator.Id].LocalRequests
 
-					fmt.Printf("Backup orders: %v\n", lostOrders)
-
 					// Re-assign the orders
 					for _, order := range lostOrders {
 						if order.OrderType == hall {
@@ -403,7 +402,6 @@ func main() {
 							// because it only takes into account the elevators that are inside of the activeElevators list
 							// and the lost elevator is not in it
 							hallBtnTx <- elevio.ButtonEvent{Button: elevio.ButtonType(order.Direction), Floor: order.Floor}
-							fmt.Print("Re-assigned hall order\n")
 						}
 					}
 				}
@@ -415,11 +413,11 @@ func main() {
 			turnOffHallLights(a...)
 
 		case p := <-retrieveCabOrdersRx: // RETRIEVE CAB ORDERS
-			fmt.Print("Received cab orders\n")
 			if p.Id == id {
-				fmt.Print("Received cab orders for me\n")
 				for _, order := range p.CabOrders {
+					turnOnCabLights(Order{order.Floor, 0, cab})
 					// Lock to safely add order and sort
+
 					lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 					addOrder(order.Floor, order.Direction, cab) // Add the hall order to the local elevatorOrders
@@ -434,12 +432,9 @@ func main() {
 
 					unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-					fmt.Print("Sent new state\n")
-
 					// Send to driver outside of mutex lock to prevent blocking
 					drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
 
-					fmt.Print("Sent new order\n")
 				}
 			}
 		}

@@ -82,8 +82,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	backupStates = allStates
 	mutex_backup.Unlock()
 
-	fmt.Printf("Backup states upon routine startup: %v\n", backupStates)
-
 	for {
 		select {
 		case a := <-hallBtnRx:
@@ -160,8 +158,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			backupStatesTx <- allStates
 
 		case id := <-askForCabOrdersRx:
-			fmt.Print("\nMaster received request for cab orders\n")
-			fmt.Printf("Current backup states: %v\n", backupStates)
 			// Master sends cab orders to the new elevator
 			lostCabOrders := []Order{}
 			for _, order := range backupStates[id].LocalRequests {
