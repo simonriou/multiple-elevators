@@ -4,6 +4,7 @@ import (
 	"Driver-go/elevio"
 	"math"
 	"time"
+	"fmt"
 )
 
 func findHighestOrders(elevatorOrders []Order) []Order {
@@ -103,7 +104,9 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
+			fmt.Printf("Received order in attendToSpecificOrder\n")
 			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+			fmt.Printf("Made it past the mutex locks in attendtospecific\n")
 
 			current_order = a
 			current_position := extractPos()
@@ -164,6 +167,8 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 		}
 	}
 }
+
+
 
 func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posArray [2*numFloors - 1]bool) ([]Order, []Order, elevio.MotorDirection) {
 

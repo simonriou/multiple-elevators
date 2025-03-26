@@ -343,21 +343,19 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
-outerloop:
+	outerloop:
 	for {
 		switch {
 		case Timer <= time.Duration(0):
 			elevio.SetDoorOpenLamp(false)
 			break outerloop
 		case Timer > time.Duration(0):
-			mutex_doors.Lock()
 			switch {
 			case ableToCloseDoors:
 				Timer = Timer - sleepDuration
 			case !ableToCloseDoors:
 				Timer = Inital_duration
 			}
-			mutex_doors.Unlock()
 		}
 		time.Sleep(sleepDuration)
 	}

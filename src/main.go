@@ -143,6 +143,19 @@ func main() {
 
 	// Section_END -- LOCAL INITIALIZATION
 
+	go func() { // Function for listening in on the obstruction button
+		for {
+			a := <-drv_obstr
+			if a { // If it is on
+				ableToCloseDoors = false
+				fmt.Print("Obstruction on\n")
+			} else { // If it is off
+				ableToCloseDoors = true
+				fmt.Print("Obstruction off\n")
+			}
+		}
+	}()
+
 	for { // MAIN LOOP
 		select {
 
@@ -156,7 +169,7 @@ func main() {
 		case a := <-drv_buttons: // BUTTON UPDATE
 			time.Sleep(30 * time.Millisecond) // More than the poll rate of the buttons
 
-			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+			//lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 			// If it's a hall order, forwards it to the master
 			switch {
 			case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
@@ -166,6 +179,7 @@ func main() {
 			case a.Button == elevio.BT_Cab: // Else (it's a cab)
 				turnOnCabLights(Order{a.Floor, 0, cab})
 
+				lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 				addOrder(a.Floor, 0, cab)                   // Add the cab order to the local elevatorOrders
 				sortAllOrders(&elevatorOrders, d, posArray) // Sort the orders
 				first_element := elevatorOrders[0]
@@ -173,11 +187,14 @@ func main() {
 				// Update & send the new state of the elevator to the master
 				updateState(&d, lastFloor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
+				fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders\n")
 				drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
+				fmt.Printf("Cab order from drv_buttons sent to attend to specificOrders\n")
 			}
 
-			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+			//unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 		case a := <-hallOrderRx: // NEW ORDER FROM THE MASTER
 			// We turn up the lights on all slaves' servers
@@ -265,19 +282,7 @@ func main() {
 				}
 			}
 
-		case a := <-drv_obstr: // OBSTRUCTION
-			// Unable to close the doors until obstruction switch is released
-			if a { // If it is on
-				lockMutexes(&mutex_doors)
-				ableToCloseDoors = false
-				unlockMutexes(&mutex_doors)
-				fmt.Print("Obstruction on\n")
-			} else { // If it is off
-				lockMutexes(&mutex_doors)
-				ableToCloseDoors = true
-				unlockMutexes(&mutex_doors)
-				fmt.Print("Obstruction off\n")
-			}
+		
 
 		case p := <-peerUpdateCh: // PEER UPDATE
 			var mPeers = p.Peers
