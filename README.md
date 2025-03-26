@@ -97,5 +97,4 @@ The system is composed of **three elevators**, each one with a different role: a
     - Lost peer: It is assumed that **only one elevator can be down at a time**. We begin by removing the lost elevator from `activeElevators`. Then we handle the role changes. If the *Master* goes down, then *PrimaryBackup* becomes *Master* and *Regular* becomes *PrimaryBackup*. If the *PrimaryBackup* goes down, then *Regular* becomes *PrimaryBackup*. We also launch the corresponding routines after assigning the new roles. Finally, we re-assign the hall orders of the lost elevators (same logic as the stop button case).
 
 # Unstable features
-- The obstruction mechanism isn't working properly, especially when one adds a new hall order while an elevator is in obstruction mode. To be fixed.
 - Packet loss was not taken into account.
