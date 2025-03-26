@@ -1,10 +1,10 @@
 Multiple elevators
 ======================
 
-Latest update: March, 18th
+Latest update: March, 26th
 
 # Usage
-Here is a detailed explaination on how to use the multiple elevators repository.
+Here is a detailed explaination on how to use the multiple elevators repository. The binary for the client can be found in the `./binaries` directory, or can be downloaded from the releases section.
 ## First launch
 Each elevator client must have a dedicated elevator server. One 'elevator' is thus composed of either a simulator (in the `./binaries` folder, `simElevatorServer`, `simElevatorServer.exe`, `simElevatorServerMacOS`) OR hardware server (`elevatorServer`) AND of a client (`./binaries` folder, `elevatorClient`, `elevatorClientMacOS` or `elevatorClientWindows.exe`). In the future, 'server' will refer to either the hardware server or the simulator. The recommended process to launch multiple is the following:
 
@@ -96,4 +96,5 @@ The system is composed of **three elevators**, each one with a different role: a
     - New peer: We add the peer back to the `activeElevators` array.
     - Lost peer: It is assumed that **only one elevator can be down at a time**. We begin by removing the lost elevator from `activeElevators`. Then we handle the role changes. If the *Master* goes down, then *PrimaryBackup* becomes *Master* and *Regular* becomes *PrimaryBackup*. If the *PrimaryBackup* goes down, then *Regular* becomes *PrimaryBackup*. We also launch the corresponding routines after assigning the new roles. Finally, we re-assign the hall orders of the lost elevators (same logic as the stop button case).
 
-# To-Do List
+# Unstable features
+The obstruction mechanism isn't working properly, especially when one adds a new hall order while an elevator is in obstruction mode. To be fixed.
