@@ -37,14 +37,10 @@ In case of the restart of an elevator after it went down, there is something to 
 # File Organisation
 
 ## Main file
-`main.go` contains the core features of an elevator. Here is an overview of what it does.
+`main.go` contains the core features of an elevator. It basically calls routines to handle every event that could happen during the elevator's work.
 
-### File overview
-- **Flags**: The `port` on which the elevator communicates with its server, as well as its `id` and `role` are defined using the flags. The `getFlags` function can be found in the `initialization.go` file.
-- **Channels**: This section contains the channel initializations of the elevator. Their usage is commented in the code.
-- **Roles-specific actions**: This section handles all the routines that must be started depending on the role of the elevator. The _Master_ elevator initializes the `activeElevators` array to `[0, 1, 2]` (for 3 elevators), as we assume that all three elevators are working upon launch. The empty list of states of the elevator is then sent to the freshly started `MasterRoutine`. The same goes for the *PrimaryBackup*.
-- **Local initialization**: This initializes the hardware of the elevator. Upon start, an elevator reaches the ground floor, sets its direction to `stop` and its behaviour to `idle` before handling orders. A <u>relay</u> is used to allow multiple routines to listen to the floor update channel. Routines for attending to orders and tracking the position of the elevator are started.
-- **Main loop**: The main loop essentially decides which action to do based on which event is happening. The detailed logic of the program can be found in the [Logic](#Logic) section.
+## Routines
+These routines are inside `routines.go`. Their name is pretty self-explainatory, but details on the logic can be found inside the [Logic](#logic) section.
 
 ## Utility file
 `util.go` contains a whole lot of utility function that are used at some point throughout the code. It is not very relevant to describe each one of them, as they mainly perform basic operations that help keep the logic clear.
