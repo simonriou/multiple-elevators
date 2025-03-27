@@ -214,7 +214,8 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			// We need to force it to become a regular elevator when it joins back the network.
 
 			if mNew.Id == id {
-				fmt.Print("I am the new elevator.\n")
+				currentRole = "Regular"
+				roleChannel <- currentRole
 			}
 
 			// The master updates the activeElevators array and sends it to the other elevators
