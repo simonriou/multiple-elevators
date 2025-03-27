@@ -46,14 +46,16 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 	id int, drv_newOrder chan Order) {
 	for {
 		a := <-drv_buttons // BUTTON UPDATE
-		//time.Sleep(30 * time.Millisecond) // More than the poll rate of the buttons
 
-		//lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+		fmt.Print("\ndrv_buttons received button press\n")
+
 		// If it's a hall order, forwards it to the master
 		switch {
 		case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 
+			//fmt.Printf("Hall order from drv_buttons waiting to be sent to the master...\n")
 			hallBtnTx <- a // Send the hall order to the master
+			//fmt.Printf("Hall order from drv_buttons sent to the master!\n\n")
 
 		case a.Button == elevio.BT_Cab: // Else (it's a cab)
 
@@ -67,9 +69,9 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 			singleStateTx <- StateMsg{id, latestState}
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-			// fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders\n")
+			//fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders...\n")
 			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
-			// fmt.Printf("Cab order from drv_buttons sent to attend to specificOrders\n")
+			//fmt.Printf("Cab order from drv_buttons sent to attend to specificOrders!\n\n")
 		}
 	}
 }
@@ -166,9 +168,9 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 
 			newHallOrder := a.HallOrder
 
-			fmt.Print("Attempting to lock mutexes\n")
+			// fmt.Print("Attempting to lock mutexes\n")
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
-			fmt.Print("Mutexes locked\n")
+			// fmt.Print("Mutexes locked\n")
 
 			addOrder(newHallOrder.Floor, newHallOrder.Direction, hall) // Add the hall order to the local elevatorOrders
 			sortAllOrders(&elevatorOrders, *d, posArray)               // Sort the orders
@@ -178,9 +180,9 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 			updateState(d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
 
-			fmt.Print("Attempting to unlock mutexes\n")
+			// fmt.Print("Attempting to unlock mutexes\n")
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
-			fmt.Print("Mutexes unlocked\n")
+			// fmt.Print("Mutexes unlocked\n")
 
 			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
 		}
@@ -190,7 +192,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
 	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent) {
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
@@ -205,6 +207,15 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 		switch { // Lost or New Peer?
 		case mNew != (peers.ElevIdentity{}): // A new peer joins the network
+
+			// We want to force the new peer to be a regular elevator.
+			// The issue is, when an elevator looses network, it thinks that the two other ones are down.
+			// Thus it becomes automatically a master.
+			// We need to force it to become a regular elevator when it joins back the network.
+
+			if mNew.Id == id {
+				fmt.Print("I am the new elevator.\n")
+			}
 
 			// The master updates the activeElevators array and sends it to the other elevators
 			if currentRole == "Master" {

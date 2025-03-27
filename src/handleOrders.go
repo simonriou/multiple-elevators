@@ -111,9 +111,9 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
-			fmt.Printf("Received order in attendToSpecificOrder\n")
+			// fmt.Printf("Received order in attendToSpecificOrder\n")
 			lockMutexes(&mutex_posArray)
-			fmt.Printf("Made it past the mutex locks in attendtospecific\n")
+			// fmt.Printf("Made it past the mutex locks in attendtospecific\n")
 
 			current_order = a
 			current_position := extractPos()
@@ -189,7 +189,7 @@ func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posA
 	highestOrders := findHighestOrders(elevatorOrders)
 	lowestOrders := findLowestOrders(elevatorOrders)
 
-	//Calculating the current Floor as a decimal so that its compareable to
+	// Calculating the current Floor as a decimal so that its compareable to
 	currentFloor := float32(0)
 	for i := 0; i < 2*numFloors-1; i++ {
 		if posArray[i] {

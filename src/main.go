@@ -43,7 +43,6 @@ func main() {
 	drv_buttons_forOrderHandling := make(chan elevio.ButtonEvent, 100)
 	go relayDrvButtons(drv_buttons, drv_buttons_forCabLights, drv_buttons_forOrderHandling)
 
-
 	go elevio.PollButtons(drv_buttons)         // Button updates
 	go elevio.PollFloorSensor(drv_floors)      // Floors updates
 	go elevio.PollFloorSensor2(drv_floors2)    // Floors updates (for tracking position)
@@ -149,15 +148,15 @@ func main() {
 	// Section_END -- LOCAL INITIALIZATION
 
 	go handleFloorLights(consumer3drv_floors)
-	go handleObstruction(drv_obstr)                                                               // Listens to the obstruction button
-	go handleElevatorUpdate(activeElevatorsChannelRx)                                             // Listens to active elevators updates
-	go handleButtonPress(drv_buttons_forOrderHandling, hallBtnTx, &d, singleStateTx, id, drv_newOrder)             // Listens to new button presses
-	go handleNewFloorReached(consumer1drv_floors, &d, singleStateTx, id)                          // Listens to floor updates
-	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx) // Listens to new orders from the master
+	go handleObstruction(drv_obstr)                                                                    // Listens to the obstruction button
+	go handleElevatorUpdate(activeElevatorsChannelRx)                                                  // Listens to active elevators updates
+	go handleButtonPress(drv_buttons_forOrderHandling, hallBtnTx, &d, singleStateTx, id, drv_newOrder) // Listens to new button presses
+	go handleNewFloorReached(consumer1drv_floors, &d, singleStateTx, id)                               // Listens to floor updates
+	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx)      // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx) // Listens to peer updates on the network
-	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx)                              // Listens for completed hall orders
+		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id) // Listens to peer updates on the network
+	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx) // Listens for completed hall orders
 	go handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders)
 	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)
 	go handleRetrieveCab(retrieveCabOrdersRx, id, &d, singleStateTx, drv_newOrder) // Listens for cab order retrieving

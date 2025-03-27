@@ -86,7 +86,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 		select {
 		case a := <-hallBtnRx:
 
-			//fmt.Print("Master received new hall order\n")
+			fmt.Print("Master received new hall order\n")
 
 			// Retrieves the information on the working elevators
 			var workingElevNb = len(activeElevators)
@@ -118,7 +118,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 					bestElevator = i
 				}
 			}
-			
 
 			// Retrieve the id of the best elevator (relative to allStates)
 			bestElevator = indexMapping[bestElevator]
