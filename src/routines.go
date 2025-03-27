@@ -214,6 +214,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			// We need to force it to become a regular elevator when it joins back the network.
 
 			if mNew.Id == id {
+				fmt.Print("I am the new elevator.\n")
 				currentRole = "Regular"
 				roleChannel <- currentRole
 			}
@@ -237,6 +238,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 		case len(mLost) > 0: // A peer leaves the network
 
 			lostElevator := mLost[0] // We assume that we only have one down elevator at a time
+			fmt.Printf("We lost elevator ID %v with role %s\n", lostElevator.Id, lostElevator.Role)
 
 			// Section_START -- CHANGING ROLES
 			newRole := currentRole
