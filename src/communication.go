@@ -86,7 +86,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 		select {
 		case a := <-hallBtnRx:
 
-			fmt.Print("Master received new hall order\n")
+			//fmt.Print("Master received new hall order\n")
 
 			// Retrieves the information on the working elevators
 			var workingElevNb = len(activeElevators)
@@ -102,11 +102,11 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Calculate the cost of assigning the order to each elevator
 			orderCosts := make([]float64, workingElevNb)
 
-			PrintButtonEvent(a)
+			//PrintButtonEvent(a)
 			for i, state := range workingElevs {
 				if state.Behavior != "Uninitialized" {
 					cost := calculateCost(state, btnPressToOrder(a))
-					fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
+					//fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
 					orderCosts[i] = cost
 				}
 			}
@@ -125,6 +125,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 
 			// Send the order to a slave
+			// fmt.Printf("HallOrderMsg: %v\n", HallOrderMessage)
 			hallOrderTx <- HallOrderMessage
 
 		case a := <-singleStateRx: // A state update on singleStateRx

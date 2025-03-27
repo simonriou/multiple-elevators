@@ -76,6 +76,11 @@ var (
 	mutex_backup sync.Mutex
 )
 
+var (
+	isWaiting     bool
+	mutex_waiting sync.Mutex
+)
+
 var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed

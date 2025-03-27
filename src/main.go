@@ -141,17 +141,17 @@ func main() {
 
 	// Section_END -- LOCAL INITIALIZATION
 
-	go handleObstruction(drv_obstr) // Listens to the obstruction button
-	go handleElevatorUpdate(activeElevatorsChannelRx) // Listens to active elevators updates
-	go handleButtonPress(drv_buttons, hallBtnTx, &d, singleStateTx, id, drv_newOrder) // Listens to new button presses
-	go handleNewFloorReached(consumer1drv_floors, &d, singleStateTx, id) // Listens to floor updates
-	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder) // Listens to new orders from the master
+	go handleObstruction(drv_obstr)                                                               // Listens to the obstruction button
+	go handleElevatorUpdate(activeElevatorsChannelRx)                                             // Listens to active elevators updates
+	go handleButtonPress(drv_buttons, hallBtnTx, &d, singleStateTx, id, drv_newOrder)             // Listens to new button presses
+	go handleNewFloorReached(consumer1drv_floors, &d, singleStateTx, id)                          // Listens to floor updates
+	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx) // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
 		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx) // Listens to peer updates on the network
-	go handleHallOrderCompleted(hallOrderCompletedRx) // Listens for completed hall orders
+	go handleHallOrderCompleted(hallOrderCompletedRx)                              // Listens for completed hall orders
 	go handleRetrieveCab(retrieveCabOrdersRx, id, &d, singleStateTx, drv_newOrder) // Listens for cab order retrieving
-	go handleStopButton(drv_stop, &d, id, activeElevatorsChannelTx, hallBtnTx) // Listens for stop button presses
+	go handleStopButton(drv_stop, &d, id, activeElevatorsChannelTx, hallBtnTx)     // Listens for stop button presses
 
 	select {}
 }

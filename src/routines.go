@@ -4,7 +4,7 @@ import (
 	"Driver-go/elevio"
 	"Network-go/network/peers"
 	"fmt"
-	"time"
+	"math"
 )
 
 func handleObstruction(drv_obstr chan bool) {
@@ -35,24 +35,24 @@ func handleElevatorUpdate(activeElevatorsChannelRx chan []int) {
 	}
 }
 
-func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevio.ButtonEvent, d * elevio.MotorDirection, singleStateTx chan StateMsg,
+func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevio.ButtonEvent, d *elevio.MotorDirection, singleStateTx chan StateMsg,
 	id int, drv_newOrder chan Order) {
 	for {
 		a := <-drv_buttons // BUTTON UPDATE
-		time.Sleep(30 * time.Millisecond) // More than the poll rate of the buttons
+		//time.Sleep(30 * time.Millisecond) // More than the poll rate of the buttons
 
 		//lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 		// If it's a hall order, forwards it to the master
 		switch {
 		case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 
- 			hallBtnTx <- a // Send the hall order to the master
+			hallBtnTx <- a // Send the hall order to the master
 
 		case a.Button == elevio.BT_Cab: // Else (it's a cab)
 			turnOnCabLights(Order{a.Floor, 0, cab})
 
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
-			addOrder(a.Floor, 0, cab)                   // Add the cab order to the local elevatorOrders
+			addOrder(a.Floor, 0, cab)                    // Add the cab order to the local elevatorOrders
 			sortAllOrders(&elevatorOrders, *d, posArray) // Sort the orders
 			first_element := elevatorOrders[0]
 
@@ -61,15 +61,14 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 			singleStateTx <- StateMsg{id, latestState}
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-			fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders\n")
+			// fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders\n")
 			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
-			fmt.Printf("Cab order from drv_buttons sent to attend to specificOrders\n")
-		}	
+			// fmt.Printf("Cab order from drv_buttons sent to attend to specificOrders\n")
+		}
 	}
 }
 
-
-func handleNewFloorReached(consumer1drv_floors chan int, d * elevio.MotorDirection, singleStateTx chan StateMsg, id int) {
+func handleNewFloorReached(consumer1drv_floors chan int, d *elevio.MotorDirection, singleStateTx chan StateMsg, id int) {
 	for {
 		a := <-consumer1drv_floors
 		lastFloor = a // Update the last floor
@@ -81,97 +80,112 @@ func handleNewFloorReached(consumer1drv_floors chan int, d * elevio.MotorDirecti
 	}
 }
 
-func handleStopButton(drv_stop chan bool, d * elevio.MotorDirection, id int, activeElevatorsChannelTx chan []int, hallBtnTx chan elevio.ButtonEvent) {
+func handleStopButton(drv_stop chan bool, d *elevio.MotorDirection, id int, activeElevatorsChannelTx chan []int, hallBtnTx chan elevio.ButtonEvent) {
 	for {
 		a := <-drv_stop // STOP BUTTON
 		switch {
-			case a:
-				// Rising edge, from unpressed to pressed
-				lockMutexes(&mutex_d)
+		case a:
+			// Rising edge, from unpressed to pressed
+			lockMutexes(&mutex_d)
 
-				// Stop the elevator
-				elevio.SetStopLamp(true)
-				lastDirForStopFunction = *d // Save the last direction before stopping, ## PLACEHOLDER ##
-				elevio.SetMotorDirection(elevio.MD_Stop)
+			// Stop the elevator
+			elevio.SetStopLamp(true)
+			lastDirForStopFunction = *d // Save the last direction before stopping, ## PLACEHOLDER ##
+			elevio.SetMotorDirection(elevio.MD_Stop)
 
-				unlockMutexes(&mutex_d)
+			unlockMutexes(&mutex_d)
 
-				// The elevator removes himself from the activeElevators list and sends it to the other elevators
+			// The elevator removes himself from the activeElevators list and sends it to the other elevators
+			mutex_activeElevators.Lock()
+			alreadyExists := isElevatorActive(id)
+			mutex_activeElevators.Unlock()
+			if alreadyExists {
 				mutex_activeElevators.Lock()
-				alreadyExists := isElevatorActive(id)
+				removeElevator(id)
 				mutex_activeElevators.Unlock()
-				if alreadyExists {
-					mutex_activeElevators.Lock()
-					removeElevator(id)
-					mutex_activeElevators.Unlock()
 
-					activeElevatorsChannelTx <- activeElevators
+				activeElevatorsChannelTx <- activeElevators
+			}
+
+			// Re-assign the hall orders, i.e. send them again to the master
+			for _, order := range elevatorOrders {
+				if order.OrderType == hall {
+					hallBtnTx <- elevio.ButtonEvent{Button: elevio.ButtonType(order.Direction), Floor: order.Floor}
 				}
+			}
 
-				// Re-assign the hall orders, i.e. send them again to the master
-				for _, order := range elevatorOrders {
-					if order.OrderType == hall {
-						hallBtnTx <- elevio.ButtonEvent{Button: elevio.ButtonType(order.Direction), Floor: order.Floor}
-					}
-				}
+		case !a:
+			// Falling edge, from pressed to unpressed
+			lockMutexes(&mutex_d)
+			elevio.SetMotorDirection(lastDirForStopFunction) // Start the elevator again in the last direction ## PLACEHOLDER ##
+			unlockMutexes(&mutex_d)
 
-			case !a:
-				// Falling edge, from pressed to unpressed
-				lockMutexes(&mutex_d)
-				elevio.SetMotorDirection(lastDirForStopFunction) // Start the elevator again in the last direction ## PLACEHOLDER ##
-				unlockMutexes(&mutex_d)
+			elevio.SetStopLamp(false)
 
-				elevio.SetStopLamp(false)
-
-				// The elevator adds himself to the activeElevators list and sends it to the other elevators
+			// The elevator adds himself to the activeElevators list and sends it to the other elevators
+			mutex_activeElevators.Lock()
+			alreadyExists := isElevatorActive(id)
+			mutex_activeElevators.Unlock()
+			if !alreadyExists {
 				mutex_activeElevators.Lock()
-				alreadyExists := isElevatorActive(id)
+				activeElevators = append(activeElevators, id)
+				activeElevators = sortElevators(activeElevators)
 				mutex_activeElevators.Unlock()
-				if !alreadyExists {
-					mutex_activeElevators.Lock()
-					activeElevators = append(activeElevators, id)
-					activeElevators = sortElevators(activeElevators)
-					mutex_activeElevators.Unlock()
 
-					activeElevatorsChannelTx <- activeElevators
-				}
+				activeElevatorsChannelTx <- activeElevators
+			}
 		}
 	}
-}    
+}
 
-
-func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d * elevio.MotorDirection, singleStateTx chan StateMsg, drv_newOrder chan Order) {
+func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDirection, singleStateTx chan StateMsg, drv_newOrder chan Order, hallOrderCompletedTx chan []Order) {
 	for {
 		a := <-hallOrderRx // NEW ORDER FROM THE MASTER
 		// We turn up the lights on all slaves' servers
 		turnOnHallLights(a.HallOrder)
+
+		currentPos := extractPos()
+		if float64(currentPos) == math.Trunc(float64(currentPos)) { // We are at a floor
+			if math.Trunc(float64(currentPos)) == float64(a.HallOrder.Floor) && isWaiting {
+				// Skip this loop iteration if the elevator is at the floor and is waiting
+
+				hallOrderCompletedTx <- []Order{a.HallOrder}
+
+				continue
+			}
+		}
 
 		// Checking if we are the elevator that should take the order
 		if a.Id == id {
 
 			newHallOrder := a.HallOrder
 
+			fmt.Print("Attempting to lock mutexes\n")
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+			fmt.Print("Mutexes locked\n")
 
 			addOrder(newHallOrder.Floor, newHallOrder.Direction, hall) // Add the hall order to the local elevatorOrders
-			sortAllOrders(&elevatorOrders, *d, posArray)                // Sort the orders
+			sortAllOrders(&elevatorOrders, *d, posArray)               // Sort the orders
 			first_element := elevatorOrders[0]
 
 			// Update & send the new state of the elevator to the master
 			updateState(d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
 
-			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
-
+			fmt.Print("Attempting to unlock mutexes\n")
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
+			fmt.Print("Mutexes unlocked\n")
+
+			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
 		}
 	}
 }
 
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
-	 hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg, 
-	 backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int, 
-	 newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent) {	for {
+	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
+	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent) {
+	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
 		var mNew = p.New
@@ -288,7 +302,7 @@ func handleHallOrderCompleted(hallOrderCompletedRx chan []Order) {
 	}
 }
 
-func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d * elevio.MotorDirection, singleStateTx chan StateMsg,
+func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.MotorDirection, singleStateTx chan StateMsg,
 	drv_newOrder chan Order) {
 	for {
 		p := <-retrieveCabOrdersRx // RETRIEVE CAB ORDERS
@@ -299,7 +313,7 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d * elevio.
 
 				lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-				addOrder(order.Floor, order.Direction, cab) // Add the hall order to the local elevatorOrders
+				addOrder(order.Floor, order.Direction, cab)  // Add the hall order to the local elevatorOrders
 				sortAllOrders(&elevatorOrders, *d, posArray) // Sort the orders
 
 				// Copy the first element locally to avoid holding the mutex longer

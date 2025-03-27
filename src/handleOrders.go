@@ -2,9 +2,9 @@ package main
 
 import (
 	"Driver-go/elevio"
+	"fmt"
 	"math"
 	"time"
-	"fmt"
 )
 
 func findHighestOrders(elevatorOrders []Order) []Order {
@@ -79,9 +79,17 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
 
-				elevio.SetDoorOpenLamp(true)
-				StopBlocker(3000 * time.Millisecond)
-				elevio.SetDoorOpenLamp(false)
+				mutex_waiting.Lock()
+				if !isWaiting {
+					isWaiting = true
+					mutex_waiting.Unlock()
+					elevio.SetDoorOpenLamp(true)
+					StopBlocker(3000 * time.Millisecond)
+					elevio.SetDoorOpenLamp(false)
+					mutex_waiting.Lock()
+					isWaiting = false
+				}
+				mutex_waiting.Unlock()
 
 				// After deleting the relevant orders at our floor => find, if any, the next currentOrder
 				if len(elevatorOrders) != 0 {
@@ -105,7 +113,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
 			fmt.Printf("Received order in attendToSpecificOrder\n")
-			lockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+			lockMutexes(&mutex_posArray)
 			fmt.Printf("Made it past the mutex locks in attendtospecific\n")
 
 			current_order = a
@@ -116,9 +124,11 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				turnOffCabLights(current_order) // Clear the cab lights for this order
 				turnOffHallLights(current_order)
 
+				lockMutexes(&mutex_d, &mutex_elevatorOrders)
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				unlockMutexes(&mutex_d, &mutex_elevatorOrders)
 
 				elevio.SetDoorOpenLamp(true)
 				StopBlocker(3000 * time.Millisecond)
@@ -128,17 +138,21 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				if len(elevatorOrders) != 0 {
 					current_order = elevatorOrders[0]
 					prev_direction := *d
+
+					mutex_d.Lock()
 					changeDirBasedOnCurrentOrder(d, current_order, float32(current_order.Floor))
+					mutex_d.Unlock()
+
 					new_direction := *d
 
 					elevio.SetMotorDirection(*d)
 
 					// Communicate with trackPosition if our direction was altered
-					unlockMutexes(&mutex_d, &mutex_posArray)
+					unlockMutexes(&mutex_posArray)
 					if prev_direction != new_direction {
 						drv_DirectionChange <- new_direction
 					}
-					lockMutexes(&mutex_d, &mutex_posArray)
+					lockMutexes(&mutex_posArray)
 				} else {
 					turnOffAllLights()
 				}
@@ -148,7 +162,11 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				current_position := extractPos()
 
 				prev_direction := *d
+
+				mutex_d.Lock()
 				changeDirBasedOnCurrentOrder(d, current_order, current_position)
+				mutex_d.Unlock()
+
 				new_direction := *d
 
 				elevio.SetDoorOpenLamp(false) // Just in case
@@ -156,19 +174,17 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				elevio.SetMotorDirection(*d)
 
 				// Communicate with trackPosition if our direction was altered
-				unlockMutexes(&mutex_d, &mutex_posArray)
+				unlockMutexes(&mutex_posArray)
 				if prev_direction != new_direction {
 					drv_DirectionChange <- new_direction
 				}
-				lockMutexes(&mutex_d, &mutex_posArray)
+				lockMutexes(&mutex_posArray)
 			}
 
-			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
+			unlockMutexes(&mutex_posArray)
 		}
 	}
 }
-
-
 
 func sortOrdersInDirection(elevatorOrders []Order, d elevio.MotorDirection, posArray [2*numFloors - 1]bool) ([]Order, []Order, elevio.MotorDirection) {
 
