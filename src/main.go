@@ -37,6 +37,12 @@ func main() {
 	drv_stop := make(chan bool)
 	drv_newOrder := make(chan Order)
 	drv_DirectionChange := make(chan elevio.MotorDirection)
+	localStatesForCabOrders := make(chan StateMsg) // ALL - Turn off cab lights after completing order
+
+	drv_buttons_forCabLights := make(chan elevio.ButtonEvent, 100)
+	drv_buttons_forOrderHandling := make(chan elevio.ButtonEvent, 100)
+	go relayDrvButtons(drv_buttons, drv_buttons_forCabLights, drv_buttons_forOrderHandling)
+
 
 	go elevio.PollButtons(drv_buttons)         // Button updates
 	go elevio.PollFloorSensor(drv_floors)      // Floors updates
@@ -121,7 +127,7 @@ func main() {
 	consumer1drv_floors := make(chan int) // Consumers for the drv_floors (relay)
 	consumer2drv_floors := make(chan int)
 	consumer3drv_floors := make(chan int)
-	go relay(drv_floors, consumer1drv_floors, consumer2drv_floors, consumer3drv_floors)
+	go relayDrvFloors(drv_floors, consumer1drv_floors, consumer2drv_floors, consumer3drv_floors)
 
 	d = elevio.MD_Stop // Update d so that states are accurate
 
@@ -130,7 +136,7 @@ func main() {
 
 	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
-	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange, singleStateTx, id)
+	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange, singleStateTx, id, localStatesForCabOrders)
 
 	// Section_START -- RERTIEVE CAB ORDERS
 	// We send our ID to the master to ask for the cab orders
@@ -145,13 +151,15 @@ func main() {
 	go handleFloorLights(consumer3drv_floors)
 	go handleObstruction(drv_obstr)                                                               // Listens to the obstruction button
 	go handleElevatorUpdate(activeElevatorsChannelRx)                                             // Listens to active elevators updates
-	go handleButtonPress(drv_buttons, hallBtnTx, &d, singleStateTx, id, drv_newOrder)             // Listens to new button presses
+	go handleButtonPress(drv_buttons_forOrderHandling, hallBtnTx, &d, singleStateTx, id, drv_newOrder)             // Listens to new button presses
 	go handleNewFloorReached(consumer1drv_floors, &d, singleStateTx, id)                          // Listens to floor updates
 	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx) // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
 		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx) // Listens to peer updates on the network
-	go handleHallOrderCompleted(hallOrderCompletedRx)                              // Listens for completed hall orders
+	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx)                              // Listens for completed hall orders
+	go handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders)
+	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)
 	go handleRetrieveCab(retrieveCabOrdersRx, id, &d, singleStateTx, drv_newOrder) // Listens for cab order retrieving
 	go handleStopButton(drv_stop, &d, id, activeElevatorsChannelTx, hallBtnTx)     // Listens for stop button presses
 

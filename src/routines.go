@@ -56,7 +56,6 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 			hallBtnTx <- a // Send the hall order to the master
 
 		case a.Button == elevio.BT_Cab: // Else (it's a cab)
-			turnOnCabLights(Order{a.Floor, 0, cab})
 
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 			addOrder(a.Floor, 0, cab)                    // Add the cab order to the local elevatorOrders
@@ -302,10 +301,44 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 	}
 }
 
-func handleHallOrderCompleted(hallOrderCompletedRx chan []Order) {
+func handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx chan []Order) {
 	for {
 		a := <-hallOrderCompletedRx // HALL ORDER COMPLETED
 		turnOffHallLights(a...)
+	}
+}
+
+func handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders chan StateMsg) {
+	for {
+		a := <-localStatesForCabOrders
+		var newCabOrders []Order
+
+		// Only keep the cab orders
+		for _, order := range a.State.LocalRequests {
+			if order.OrderType == cab {
+				newCabOrders = append(newCabOrders, order)
+			}
+		}
+
+		// Turn off all the cab lights
+		for f := 0; f < numFloors; f++ {
+			elevio.SetButtonLamp(elevio.BT_Cab, f, false)
+		}
+
+		// Turn on all the remaining cab orders
+		for _, order := range newCabOrders {
+			elevio.SetButtonLamp(elevio.BT_Cab, order.Floor, true)
+		}
+	}
+}
+
+func handleTurnOnLightsCabOrder(drv_buttons_forCabLights chan elevio.ButtonEvent) {
+	for {
+		a := <-drv_buttons_forCabLights
+		if a.Button == elevio.BT_Cab {
+			turnOnCabLights(Order{a.Floor, 0, cab})
+		}
+
 	}
 }
 
