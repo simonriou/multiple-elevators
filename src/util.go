@@ -361,7 +361,16 @@ func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a ce
 	}
 }
 
-func relay(source chan int, consumers ...chan int) {
+func relayDrvFloors(source chan int, consumers ...chan int) {
+	for {
+		value := <-source
+		for _, consumer := range consumers {
+			consumer <- value // Send to each consumer
+		}
+	}
+}
+
+func relayDrvButtons(source chan elevio.ButtonEvent, consumers ... chan elevio.ButtonEvent) {
 	for {
 		value := <-source
 		for _, consumer := range consumers {

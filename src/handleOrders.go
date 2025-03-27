@@ -58,7 +58,7 @@ func orderInContainer(order_slice []Order, order_ Order) bool {
 
 // This function will attend to the current order, it
 func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection,
-	singleStateTx chan StateMsg, id int) {
+	singleStateTx chan StateMsg, id int, localStatesForCabOrders chan StateMsg) {
 	current_order := Order{0, -1, 0}
 	for {
 		select {
@@ -71,13 +71,12 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				elevio.SetMotorDirection(*d)
 
 				// Clear the cab lights for this order, (the removal of hallOrders is sent through the MasterRoutine and back to all single elevators)
-				turnOffCabLights(current_order)
-				// In case we lose connection to the masterRoutine
-				turnOffHallLights(current_order)
 
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				fmt.Printf("Reached floor: %v, sending orders: %v\n", a, latestState.LocalRequests)
+				localStatesForCabOrders <- StateMsg{id, latestState}
 
 				mutex_waiting.Lock()
 				if !isWaiting {
@@ -107,7 +106,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 					}
 					lockMutexes(&mutex_d, &mutex_posArray)
 				} else {
-					turnOffAllLights()
+					//turnOffAllLights()
 				}
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
@@ -121,13 +120,12 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			switch {
 			// Case 1: HandleOrders sent a new Order and it is at the same floor
 			case *d == elevio.MD_Stop && current_position == float32(current_order.Floor):
-				turnOffCabLights(current_order) // Clear the cab lights for this order
-				turnOffHallLights(current_order)
 
 				lockMutexes(&mutex_d, &mutex_elevatorOrders)
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				localStatesForCabOrders <- StateMsg{id, latestState}
 				unlockMutexes(&mutex_d, &mutex_elevatorOrders)
 
 				elevio.SetDoorOpenLamp(true)
