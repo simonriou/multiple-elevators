@@ -7,6 +7,11 @@ import (
 	"math"
 )
 
+func handleFloorLights(consumer3drv_floors chan int) {
+	a := <-consumer3drv_floors
+	elevio.SetFloorIndicator(a)
+}
+
 func handleObstruction(drv_obstr chan bool) {
 	for {
 		a := <-drv_obstr

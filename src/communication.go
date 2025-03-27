@@ -118,9 +118,11 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 					bestElevator = i
 				}
 			}
+			
 
 			// Retrieve the id of the best elevator (relative to allStates)
 			bestElevator = indexMapping[bestElevator]
+			fmt.Printf("Best elevator according to the cost function: %v\n", bestElevator)
 
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 

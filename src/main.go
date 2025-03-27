@@ -120,7 +120,8 @@ func main() {
 
 	consumer1drv_floors := make(chan int) // Consumers for the drv_floors (relay)
 	consumer2drv_floors := make(chan int)
-	go relay(drv_floors, consumer1drv_floors, consumer2drv_floors)
+	consumer3drv_floors := make(chan int)
+	go relay(drv_floors, consumer1drv_floors, consumer2drv_floors, consumer3drv_floors)
 
 	d = elevio.MD_Stop // Update d so that states are accurate
 
@@ -141,6 +142,7 @@ func main() {
 
 	// Section_END -- LOCAL INITIALIZATION
 
+	go handleFloorLights(consumer3drv_floors)
 	go handleObstruction(drv_obstr)                                                               // Listens to the obstruction button
 	go handleElevatorUpdate(activeElevatorsChannelRx)                                             // Listens to active elevators updates
 	go handleButtonPress(drv_buttons, hallBtnTx, &d, singleStateTx, id, drv_newOrder)             // Listens to new button presses
