@@ -81,6 +81,11 @@ var (
 	mutex_waiting sync.Mutex
 )
 
+var (
+	isOneMissing  bool // A boolean that tells us if one of the elevators is missing
+	mutex_missing sync.Mutex
+)
+
 var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed

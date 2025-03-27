@@ -213,11 +213,13 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			// Thus it becomes automatically a master.
 			// We need to force it to become a regular elevator when it joins back the network.
 
-			if mNew.Id == id {
+			if mNew.Id == id && isOneMissing {
 				fmt.Print("I am the new elevator.\n")
 				currentRole = "Regular"
 				roleChannel <- currentRole
 			}
+
+			isOneMissing = false
 
 			// The master updates the activeElevators array and sends it to the other elevators
 			if currentRole == "Master" {
@@ -236,6 +238,10 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			}
 
 		case len(mLost) > 0: // A peer leaves the network
+
+			mutex_missing.Lock()
+			isOneMissing = true
+			mutex_missing.Unlock()
 
 			lostElevator := mLost[0] // We assume that we only have one down elevator at a time
 			fmt.Printf("We lost elevator ID %v with role %s\n", lostElevator.Id, lostElevator.Role)
