@@ -14,7 +14,7 @@ func handleFloorLights(consumer3drv_floors chan int) {
 		a := <-consumer3drv_floors
 		elevio.SetFloorIndicator(a)
 	}
-}	
+}
 
 // obstructionToReAssignment
 

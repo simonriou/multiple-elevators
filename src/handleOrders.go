@@ -58,7 +58,7 @@ func orderInContainer(order_slice []Order, order_ Order) bool {
 
 // This function will attend to the current order, it
 func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan int, drv_newOrder chan Order, drv_DirectionChange chan elevio.MotorDirection,
-	singleStateTx chan StateMsg, id int, localStatesForCabOrders chan StateMsg) {
+	singleStateTx chan StateMsg, id int, localStatesForCabOrders chan StateMsg, activeElevatorsChannelTx chan []int) {
 	current_order := Order{0, -1, 0}
 	for {
 		select {
@@ -84,7 +84,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 					isWaiting = true
 					mutex_waiting.Unlock()
 					elevio.SetDoorOpenLamp(true)
-					StopBlocker(3000*time.Millisecond, id)
+					StopBlocker(3000*time.Millisecond, id, activeElevatorsChannelTx)
 					elevio.SetDoorOpenLamp(false)
 					mutex_waiting.Lock()
 					isWaiting = false
@@ -131,7 +131,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				unlockMutexes(&mutex_d, &mutex_elevatorOrders)
 
 				elevio.SetDoorOpenLamp(true)
-				StopBlocker(3000*time.Millisecond, id)
+				StopBlocker(3000*time.Millisecond, id, activeElevatorsChannelTx)
 				elevio.SetDoorOpenLamp(false)
 
 				// After deleting the relevant orders at our floor => find, if any, find the next currentOrder
