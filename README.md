@@ -1,4 +1,4 @@
-Multiple elevators
+TTK4145 - Group 38 - Multiple Elevators Project
 ======================
 
 Latest update: March, 28th
