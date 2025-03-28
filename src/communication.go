@@ -68,6 +68,10 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 					redistributeOrders(elevatorOrdersMotorStop[id], hallBtnTx)
 					unlockMutexes(&mutex_elevatorOrdersMotorStop)
 
+					// Check if the local array of the elevator is empty
+					if len(elevatorOrdersMotorStop[id]) == 0 {
+						fmt.Print("The down elevator doesn't have any order to redistribute\n")
+					}
 					handledPowerLoss = true // Set the flag to true to avoid multiple signals
 				}
 			}
@@ -114,7 +118,6 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 			mutex_activeElevators.Unlock()
 
 			activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
-
 		}
 	}
 
