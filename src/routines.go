@@ -195,7 +195,6 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
-		var mPeers = p.Peers
 		var mNew = p.New
 		var mLost = p.Lost
 
