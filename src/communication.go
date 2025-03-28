@@ -35,13 +35,15 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 	var lastSeen = make(map[int]time.Time)                 // A map for keeping track of the times since we last saw the elevators
 	var elevatorOrdersMotorStop = make([][]Order, numElev) // The last received local request to one of the elevators
 
+	var handledPowerLoss = false
+
 	go func() {
 		for {
 			// Timer for all the elevators
 			lockMutexes(&mutex_lastSeenMotorStop)
 
 			for id, t := range lastSeen {
-				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 { // and localrequest is empty
+				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 && !handledPowerLoss { // and localrequest is empty
 
 					// Signal that the elevator with the corresponding id is inactive
 					mutex_activeElevators.Lock()
@@ -61,6 +63,8 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 					lockMutexes(&mutex_elevatorOrdersMotorStop)
 					redistributeOrders(elevatorOrdersMotorStop[id], hallBtnTx)
 					unlockMutexes(&mutex_elevatorOrdersMotorStop)
+
+					handledPowerLoss = true // Set the flag to true to avoid multiple signals
 				}
 			}
 			unlockMutexes(&mutex_lastSeenMotorStop)
