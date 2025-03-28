@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+func getNearestFloor() int {
+	// Assuming we are idle, get the nearest floor accessible
+	// This function is here to make sure we don't try to go below 0 or above numFloors
+
+	mutex_posArray.Lock()
+	currentFloor := extractPos()
+	mutex_posArray.Unlock()
+
+	floorIndex := int(currentFloor)
+
+	if floorIndex == 0 {
+		return 1
+	}
+	if floorIndex == numFloors-1 {
+		return numFloors - 2
+	}
+
+	return floorIndex + 1
+}
+
 func initAllStates(allStates [numElev]ElevState) [numElev]ElevState {
 	uninitializedOrderArray := []Order{
 		{
@@ -343,7 +363,7 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
-	outerloop:
+outerloop:
 	for {
 		switch {
 		case Timer <= time.Duration(0):
@@ -370,9 +390,17 @@ func relayDrvFloors(source chan int, consumers ...chan int) {
 	}
 }
 
-func relayDrvButtons(source chan elevio.ButtonEvent, consumers ... chan elevio.ButtonEvent) {
+func relayDrvButtons(source chan elevio.ButtonEvent, consumers ...chan elevio.ButtonEvent) {
 	for {
 		value := <-source
+		for _, consumer := range consumers {
+			consumer <- value // Send to each consumer
+		}
+	}
+}
+
+func forwarder(source chan StateMsg, consumers ...chan StateMsg) {
+	for value := range source {
 		for _, consumer := range consumers {
 			consumer <- value // Send to each consumer
 		}

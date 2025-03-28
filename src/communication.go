@@ -45,7 +45,7 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 			lockMutexes(&mutex_lastSeenMotorStop)
 
 			for id, t := range lastSeen {
-				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 && !handledPowerLoss { // and localrequest is empty
+				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 && !handledPowerLoss {
 
 					hasPowerLoss = true
 
@@ -68,10 +68,6 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 					redistributeOrders(elevatorOrdersMotorStop[id], hallBtnTx)
 					unlockMutexes(&mutex_elevatorOrdersMotorStop)
 
-					// Check if the local array of the elevator is empty
-					if len(elevatorOrdersMotorStop[id]) == 0 {
-						fmt.Print("The down elevator doesn't have any order to redistribute\n")
-					}
 					handledPowerLoss = true // Set the flag to true to avoid multiple signals
 				}
 			}

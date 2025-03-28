@@ -399,3 +399,15 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 		}
 	}
 }
+
+func maintainActivity(d *elevio.MotorDirection, selfUpdate chan StateMsg) {
+	for {
+		// Wait for a state update
+		a := <-selfUpdate
+
+		// Check if the state has changed over the last X seconds AND that the elevator has no orders
+
+		// If so, move to the nearest floor (using utils.go -> getNearestFloor())
+
+	}
+}

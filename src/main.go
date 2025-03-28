@@ -39,6 +39,7 @@ func main() {
 	drv_newOrder := make(chan Order)
 	drv_DirectionChange := make(chan elevio.MotorDirection)
 	localStatesForCabOrders := make(chan StateMsg) // ALL - Turn off cab lights after completing order
+	selfUpdate := make(chan StateMsg)              // ALL - Check for updates of the state to prevent loosing the elevator
 
 	drv_buttons_forCabLights := make(chan elevio.ButtonEvent, 100)
 	drv_buttons_forOrderHandling := make(chan elevio.ButtonEvent, 100)
@@ -68,6 +69,8 @@ func main() {
 	go bcast.Transmitter(ActiveElevators_PORT, activeElevatorsChannelTx)
 	go bcast.Receiver(RetrieveCabOrders_PORT, retrieveCabOrdersRx)
 	go bcast.Transmitter(AskForCabOrders_PORT, askForCabOrdersTx)
+
+	go forwarder(singleStateTx, selfUpdate)
 
 	// Channels for specific roles
 	hallBtnRx := make(chan elevio.ButtonEvent)      // MASTER - Receive hall orders from slaves
@@ -169,6 +172,7 @@ func main() {
 	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)
 	go handleRetrieveCab(retrieveCabOrdersRx, id, &d, singleStateTx, drv_newOrder) // Listens for cab order retrieving
 	go handleStopButton(drv_stop, &d, id, activeElevatorsChannelTx, hallBtnTx)     // Listens for stop button presses
+	go maintainActivity(&d, selfUpdate)
 
 	select {}
 }
