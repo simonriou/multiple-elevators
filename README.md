@@ -1,7 +1,12 @@
 Multiple elevators
 ======================
 
-Latest update: March, 26th
+Latest update: March, 28th
+
+# Unstable / missing features
+- Packet loss is breaking the elevator client as soon as 25% of the information is lost. The peers disconnect too often for the peer update channel to keep track of it in our current configuration. In addition, hall button presses and light updates are not registered.
+- Elevators that experience power loss (no script termination, only motor power loss) **and that don't have any pending order** are not flaged as inactive.
+- When an elevator experiences power loss and that another one takes the hall order that it had, the Hall Light turn off is delayed until the first elevator gets back on and goes for it.
 
 # Usage
 Here is a detailed explaination on how to use the multiple elevators repository. The binary for the client can be found in the `./binaries` directory, or can be downloaded from the releases section.
@@ -18,9 +23,9 @@ Each elevator client must have a dedicated elevator server. One 'elevator' is th
     ```bash
     ./SimElevatorServerMacOS --port=12120
     ```
-- Once all the servers are started, launch every elevator client. Although it is recommended to start the *Master* elevator first, the script will work no matter which elevator starts first. In case of a use with two elevators only, we **must have a *Master* and a *PrimaryBackup* at all times**. Two elevators **cannot have the same role**. Each elevator must have an **unique** ID which **must be a positive integer**. Upon launching a client, three parameters must be specified:
+- Once all the servers are started, launch every elevator client. Although it is recommended to start the *Master* elevator first, the script will work no matter which elevator starts first. In case of a use with two elevators only, we **must have a *Master* and a *PrimaryBackup* at all times**. Two elevators **cannot have the same role**. Each elevator must have an **unique** ID which **must be a positive integer** the IDs of the elevator must be **consecutive integers starting at 0**. Upon launching a client, three parameters must be specified:
     - The **port** on which it will communicate with the server
-    - The **ID** of the elevator, a positive integer, **unique**
+    - The **ID** of the elevator, a positive integer, **unique**, consecutives, starting at 0.
     - Its **role**, a string, **unique**, which can be **[*Regular*, *Master* or *PrimaryBackup*]**. The roles **are case-sensitive**.
 
     Here is an example of a correct syntax for the launch of elevator ID 0, role Master on port 12120:
@@ -29,10 +34,10 @@ Each elevator client must have a dedicated elevator server. One 'elevator' is th
     ./elevatorClient --port=12120 --id=0 --role=Master
     ```
 
-    Note that the command must be run inside of the `./binairies` directory, and that the order in which the parameters are passed is of no importance.
+    Note that the command must be run inside of the `./binairies` directory, and that the order in which the parameters are passed is of no importance. Alternatively, you can build the project directly from the `.src/` directory, using `go run .` followed by the same set of arguments.
 
 ## Re-launch after shutdown (important)
-In case of the restart of an elevator after it went down, there is something to consider: whenever an elevator goes down, the two remaining ones change roles so that there always are *Master* and *PrimaryBackup* elevators at all times. This means that **if a *Master* or a *PrimaryBackup* goes down, we must restart it as a *Regular*** elevator, because another elevator will have taken his role by then. However **its ID must remain unchanged**.
+In case of the restart of an elevator after it went down, there is something to consider: whenever an elevator goes down, the two remaining ones change roles so that there always are *Master* and *PrimaryBackup* elevators at all times. This means that **if a *Master* or a *PrimaryBackup* goes down, we must restart it as a *Regular*** elevator, because another elevator will have taken his role by then. However **its ID must remain unchanged**. This is only affected for restarts after force termination of a script (using `Ctrl+C`). In case of a network or power loss (unplugging the respective cable), there is no need to specify a new role to the elevator.
 
 # File Organisation
 
@@ -92,7 +97,4 @@ The system is composed of **three elevators**, each one with a different role: a
     - New peer: We add the peer back to the `activeElevators` array.
     - Lost peer: It is assumed that **only one elevator can be down at a time**. We begin by removing the lost elevator from `activeElevators`. Then we handle the role changes. If the *Master* goes down, then *PrimaryBackup* becomes *Master* and *Regular* becomes *PrimaryBackup*. If the *PrimaryBackup* goes down, then *Regular* becomes *PrimaryBackup*. We also launch the corresponding routines after assigning the new roles. Finally, we re-assign the hall orders of the lost elevators (same logic as the stop button case).
 
-# Unstable features
-- Packet loss was not taken into account.
-- Elevators that experience power loss (no script termination, only motor power loss) and that don't have any pending order are not flaged as inactive.
-- When an elevator experiences power loss and that another one takes the hall order that it had, the Hall Light turn off is delayed until the first elevator gets back on and goes for it.
+On top of all of that, the master is at all times sending its backup states to all the slaves (who update their own state based on this information), and each slave periodically sends its own state to the master, who update its backup states with it. This is supposed to protect the elevators from packet loss.
