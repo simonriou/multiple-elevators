@@ -192,8 +192,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
 	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, retrieveMissingInfoTx chan bool,
-	askForMissingInfoRx chan int) {
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
@@ -209,24 +208,12 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 		switch { // Lost or New Peer?
 		case mNew != (peers.ElevIdentity{}): // A new peer joins the network
 
-			// We want to force the new peer to be a regular elevator.
+			// We want to force the new peer to be a regular elevator, BUT only if it's an elevator that was down.
 			// The issue is, when an elevator looses network, it thinks that the two other ones are down.
 			// Thus it becomes automatically a master.
 			// We need to force it to become a regular elevator when it joins back the network.
 
-			mutex_missing.Lock()
-			var elevMissing = isOneMissing
-			mutex_missing.Unlock()
-
-			if mNew.Id == id && elevMissing {
-				fmt.Print("I AM THE NEW ONE.\n")
-				currentRole = "Regular"
-				roleChannel <- currentRole
-			}
-
-			mutex_missing.Lock()
-			isOneMissing = false
-			mutex_missing.Unlock()
+			// Step 1: Make sure that this is indeed a recovered elevator, not a new startup
 
 			// The master updates the activeElevators array and sends it to the other elevators
 			if currentRole == "Master" {
@@ -244,10 +231,6 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			}
 
 		case len(mLost) > 0: // A peer leaves the network
-
-			mutex_missing.Lock()
-			isOneMissing = true
-			mutex_missing.Unlock()
 
 			lostElevator := mLost[0] // We assume that we only have one down elevator at a time
 			fmt.Printf("We lost elevator ID %v with role %s\n", lostElevator.Id, lostElevator.Role)
@@ -270,7 +253,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 					newRole = "Master"
 					go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-						retrieveCabOrdersTx, askForCabOrdersRx, retrieveMissingInfoTx, askForMissingInfoRx)
+						retrieveCabOrdersTx, askForCabOrdersRx)
 					newStatesTx <- backupStates // Sending the backupStates to the new master
 
 				}
@@ -280,6 +263,10 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 					newRole = "PrimaryBackup"
 					go PrimaryBackupRoutine(backupStatesRx)
 				}
+			}
+
+			if len(mPeers) == 0 && len(mLost) > 0 { // This means that we were disconnected from the network
+				currentRole = "Regular"
 			}
 
 			if newRole != currentRole {
@@ -398,17 +385,6 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 				drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
 
 			}
-		}
-	}
-}
-
-func handleRetrieveMissingElev(retrieveMissingInfoRx chan bool) {
-	for {
-		a := <-retrieveMissingInfoRx // RETRIEVE MISSING ELEVATOR
-		if a {
-			mutex_missing.Lock()
-			isOneMissing = a
-			mutex_missing.Unlock()
 		}
 	}
 }

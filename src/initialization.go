@@ -25,10 +25,6 @@ func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
 		ableToCloseDoors = true
 		//turnOffLights(Order{0, -1, 0}, true)
 
-		mutex_waiting.Lock()
-		isWaiting = false // Initialize the isWaiting variable
-		mutex_waiting.Unlock()
-
 		drv_finishedInitialization <- true
 	}()
 
