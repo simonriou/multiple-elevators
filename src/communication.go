@@ -9,6 +9,29 @@ import (
 	"time"
 )
 
+func spamMaster(singleStateFromSlaveTx chan StateMsg, id int) {
+	// Send the state of the elevator to the master periodically
+	for {
+		time.Sleep(100 * time.Millisecond)
+		mutex_state.Lock()
+		singleStateFromSlaveTx <- StateMsg{
+			Id:    id,
+			State: latestState,
+		}
+		mutex_state.Unlock()
+	}
+}
+
+func spamSlaves(allStatesFromMasterTx chan [numElev]ElevState) {
+	// Send the state of the elevator to the slaves periodically
+	for {
+		time.Sleep(100 * time.Millisecond)
+		mutex_backup.Lock()
+		allStatesFromMasterTx <- backupStates
+		mutex_backup.Unlock()
+	}
+}
+
 func extractHallOrders(orders []Order) []Order {
 	var hallOrders []Order
 	for _, order := range orders {
@@ -157,7 +180,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
 	hallOrderCompletedTx chan []Order,
 	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	ctx context.Context, hallBtnTx chan elevio.ButtonEvent, activeElevatorsChannelTx chan []int) {
+	ctx context.Context, hallBtnTx chan elevio.ButtonEvent, activeElevatorsChannelTx chan []int,
+	allStatesFromMasterTx chan [numElev]ElevState, singleStateFromSlaveRx chan StateMsg) {
 
 	fmt.Print("New master routine started\n")
 
@@ -169,6 +193,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	go bcast.Transmitter(HallOrderCompleted_PORT, hallOrderCompletedTx)
 	go bcast.Transmitter(RetrieveCabOrders_PORT, retrieveCabOrdersTx)
 	go bcast.Receiver(AskForCabOrders_PORT, askForCabOrdersRx)
+	go bcast.Transmitter(SpamFromMaster_PORT, allStatesFromMasterTx)
+	go bcast.Receiver(SpamFromSlave_PORT, singleStateFromSlaveRx)
 
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
@@ -181,6 +207,9 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	mutex_backup.Lock()
 	backupStates = allStates
 	mutex_backup.Unlock()
+
+	go spamSlaves(allStatesFromMasterTx)            // Send the state of the elevators to the slaves periodically
+	go receiveSpamFromSlave(singleStateFromSlaveRx) // Receive the state of the elevators from the slaves periodically
 
 	for {
 		select {
@@ -221,6 +250,11 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Retrieve the id of the best elevator (relative to allStates)
 			bestElevator = indexMapping[bestElevator]
 			// fmt.Printf("Best elevator according to the cost function: %v\n", bestElevator)
+
+			// Update backupStates with the new order
+			mutex_backup.Lock()
+			backupStates[bestElevator].LocalRequests = append(backupStates[bestElevator].LocalRequests, btnPressToOrder(a))
+			mutex_backup.Unlock()
 
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 

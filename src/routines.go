@@ -196,7 +196,8 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
 	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, ctx context.Context, cancel context.CancelFunc) {
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, ctx context.Context, cancel context.CancelFunc,
+	allStatesFromMasterTx chan [numElev]ElevState, singleStateFromSlaveRx chan StateMsg) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
@@ -257,7 +258,8 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 					newRole = "Master"
 					go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-						retrieveCabOrdersTx, askForCabOrdersRx, ctx, hallBtnTx, activeElevatorsChannelTx)
+						retrieveCabOrdersTx, askForCabOrdersRx, ctx, hallBtnTx, activeElevatorsChannelTx, allStatesFromMasterTx,
+						singleStateFromSlaveRx)
 					newStatesTx <- backupStates // Sending the backupStates to the new master
 
 				}
@@ -374,6 +376,7 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 		p := <-retrieveCabOrdersRx // RETRIEVE CAB ORDERS
 		if p.Id == id {
 			for _, order := range p.CabOrders {
+
 				turnOnCabLights(Order{order.Floor, 0, cab})
 				// Lock to safely add order and sort
 
@@ -400,14 +403,29 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 	}
 }
 
-func maintainActivity(d *elevio.MotorDirection, selfUpdate chan StateMsg) {
+func receiveSpamFromMaster(allStatesFromMasterRx chan [numElev]ElevState, id int) {
 	for {
-		// Wait for a state update
-		a := <-selfUpdate
-		_ = a
-		// Check if the state has changed over the last X seconds AND that the elevator has no orders
+		a := <-allStatesFromMasterRx // ALL STATES FROM MASTER
+		myState := a[id]
 
-		// If so, move to the nearest floor (using utils.go -> getNearestFloor())
+		mutex_elevatorOrders.Lock()
+		elevatorOrders = myState.LocalRequests // Update the local orders array
+		mutex_elevatorOrders.Unlock()
 
+		// fmt.Printf("What I received from master: %v\n", a)
+	}
+}
+
+func receiveSpamFromSlave(singleStateFromSlaveRx chan StateMsg) {
+	for {
+		a := <-singleStateFromSlaveRx
+		slaveID := a.Id
+		slaveState := a.State
+
+		mutex_backup.Lock()
+		backupStates[slaveID] = slaveState // Update the backup states array
+		mutex_backup.Unlock()
+
+		// fmt.Printf("Received state from slave %d: %v\n", slaveID, slaveState)
 	}
 }

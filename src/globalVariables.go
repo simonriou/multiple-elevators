@@ -23,6 +23,8 @@ const ( // Ports
 	AskForCabOrders_PORT                    // Ask for cab orders port (master <-> slave)
 	MissingElev_PORT                        // Missing elevator port (all)
 	AskForMissingInfo_PORT                  // Ask for missing info port (all)
+	SpamFromMaster_PORT                     // Spam port (all)
+	SpamFromSlave_PORT                      // Spam port (all)
 )
 
 const (

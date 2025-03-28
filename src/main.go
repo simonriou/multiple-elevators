@@ -61,6 +61,9 @@ func main() {
 	retrieveCabOrdersRx := make(chan CabOrderMsg)    // ALL - Retrieve the cab orders from the master
 	askForCabOrdersTx := make(chan int)              // ALL - Ask for the cab orders from the master
 
+	allStatesFromMasterRx := make(chan [numElev]ElevState) // ALL - Receive all states from the master
+	singleStateFromSlaveTx := make(chan StateMsg)          // ALL - Send the state of the elevator to the master
+
 	go bcast.Receiver(HallOrder_PORT, hallOrderRx)
 	go bcast.Transmitter(HallOrderRawBTN_PORT, hallBtnTx)
 	go bcast.Transmitter(SingleElevatorState_PORT, singleStateTx)
@@ -69,8 +72,10 @@ func main() {
 	go bcast.Transmitter(ActiveElevators_PORT, activeElevatorsChannelTx)
 	go bcast.Receiver(RetrieveCabOrders_PORT, retrieveCabOrdersRx)
 	go bcast.Transmitter(AskForCabOrders_PORT, askForCabOrdersTx)
+	go bcast.Receiver(SpamFromMaster_PORT, allStatesFromMasterRx)
+	go bcast.Transmitter(SpamFromSlave_PORT, singleStateFromSlaveTx)
 
-	go forwarder(singleStateTx, selfUpdate)
+	go forwarderStateMsg(singleStateTx, selfUpdate)
 
 	// Channels for specific roles
 	hallBtnRx := make(chan elevio.ButtonEvent)      // MASTER - Receive hall orders from slaves
@@ -84,6 +89,9 @@ func main() {
 	retrieveCabOrdersTx := make(chan CabOrderMsg)   // ALL - Retrieve the cab orders from the master
 	askForCabOrdersRx := make(chan int)             // ALL - Ask for the cab orders from the master
 
+	allStatesFromMasterTx := make(chan [numElev]ElevState) // ALL - Send all states to the master
+	singleStateFromSlaveRx := make(chan StateMsg)          // ALL - Receive the state of the elevator from the master
+
 	go bcast.Transmitter(BackupStates_PORT, newStatesTx) // LOCAL - Used to send the states to the NEW master (used in role changes)
 
 	_ = hallBtnRx
@@ -93,6 +101,8 @@ func main() {
 	_ = newStatesRx
 	_ = retrieveCabOrdersTx
 	_ = askForCabOrdersRx
+	_ = allStatesFromMasterTx
+	_ = singleStateFromSlaveRx
 
 	// Section_END -- CHANNELS
 
@@ -111,7 +121,8 @@ func main() {
 
 		// Starting the Master Routine
 		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-			retrieveCabOrdersTx, askForCabOrdersRx, ctx, hallBtnTx, activeElevatorsChannelTx)
+			retrieveCabOrdersTx, askForCabOrdersRx, ctx, hallBtnTx, activeElevatorsChannelTx, allStatesFromMasterTx,
+			singleStateFromSlaveRx)
 
 		// This is the initial states of the elevators
 		var allStates [numElev]ElevState
@@ -166,13 +177,16 @@ func main() {
 	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx)      // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, ctx, cancel) // Listens to peer updates on the network
+		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, ctx, cancel,
+		allStatesFromMasterTx, singleStateFromSlaveRx) // Listens to peer updates on the network
 	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedLightsRx) // Listens for completed hall orders
 	go handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders)
 	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)
 	go handleRetrieveCab(retrieveCabOrdersRx, id, &d, singleStateTx, drv_newOrder) // Listens for cab order retrieving
 	go handleStopButton(drv_stop, &d, id, activeElevatorsChannelTx, hallBtnTx)     // Listens for stop button presses
-	go maintainActivity(&d, selfUpdate)
+
+	go receiveSpamFromMaster(allStatesFromMasterRx, id)
+	go spamMaster(singleStateFromSlaveTx, id) // Sends the state of the elevator to the master periodically
 
 	select {}
 }

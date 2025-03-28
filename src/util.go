@@ -399,7 +399,7 @@ func relayDrvButtons(source chan elevio.ButtonEvent, consumers ...chan elevio.Bu
 	}
 }
 
-func forwarder(source chan StateMsg, consumers ...chan StateMsg) {
+func forwarderStateMsg(source chan StateMsg, consumers ...chan StateMsg) {
 	for value := range source {
 		for _, consumer := range consumers {
 			consumer <- value // Send to each consumer
