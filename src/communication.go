@@ -57,10 +57,15 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 
 	var lastSeen = make(map[int]time.Time)                 // A map for keeping track of the times since we last saw the elevators
 	var elevatorOrdersMotorStop = make([][]Order, numElev) // The last received local request to one of the elevators
-
+	
 	var handledPowerLoss = false
 	var hasPowerLoss = false
 	_ = hasPowerLoss
+
+
+	for i, _ := range lastSeen {
+		lastSeen[i] = time.Now()
+	}
 
 	go func() {
 		for {
@@ -68,6 +73,8 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 			lockMutexes(&mutex_lastSeenMotorStop)
 
 			for id, t := range lastSeen {
+				fmt.Printf("id: %v, t:%v\n", id, t)
+				fmt.Printf("ElevatorsOrdersMotorStop: %v\n", elevatorOrdersMotorStop)
 				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 && !handledPowerLoss {
 
 					hasPowerLoss = true

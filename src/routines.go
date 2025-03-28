@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	//"time"
 )
 
 func handleFloorLights(consumer3drv_floors chan int) {
@@ -13,7 +14,9 @@ func handleFloorLights(consumer3drv_floors chan int) {
 		a := <-consumer3drv_floors
 		elevio.SetFloorIndicator(a)
 	}
-}
+}	
+
+// obstructionToReAssignment
 
 func handleObstruction(drv_obstr chan bool) {
 	for {
@@ -31,6 +34,15 @@ func handleObstruction(drv_obstr chan bool) {
 		}
 	}
 }
+
+/* func reAssignHallOrdersObstruction() {
+	timestamp := time.Now()
+
+
+
+	//redistributeOrders(localRequest []Order, hallBtnTx chan elevio.ButtonEvent)
+
+} */
 
 func handleElevatorUpdate(activeElevatorsChannelRx chan []int) {
 	for {
