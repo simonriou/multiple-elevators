@@ -6,6 +6,7 @@ Latest update: March, 28th
 # Unstable / missing features
 - Packet loss is breaking the elevator client as soon as 40-50% of the information is lost. The peers disconnect too often for the peer update channel to keep track of it in our current configuration. In addition, hall button presses and light updates are not registered.
 - Elevators that experience power loss (no script termination, only motor power loss) **and that don't have any pending order** are not flaged as inactive.
+- Obstruction while having hall orders does not redistribute them. Instead, the elevator handles them whenever it is able to close its doors.
 - When an elevator experiences power loss and that another one takes the hall order that it had, the Hall Light turn off is delayed until the first elevator gets back on and goes for it.
 
 # Usage
