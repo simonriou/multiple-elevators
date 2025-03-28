@@ -91,7 +91,7 @@ var mutex_d sync.Mutex // Mutex for the direction of the elevator
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
 
 // Variables for the MotorStop
-const timerHallOrder time.Duration = 10 * time.Second   // Assuming 30 seconds for the timer
+const timerHallOrder time.Duration = 3 * time.Second    // Assuming 3 seconds for the timer
 const pollRateMotorStop time.Duration = 3 * time.Second // The rate at which we check for power shortage
 
 var mutex_lastSeenMotorStop sync.Mutex // Mutex for the lastSeen variable in detectMotorStop
