@@ -270,7 +270,9 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 			if len(mPeers) == 0 && len(mLost) > 0 { // This means that we were disconnected from the network
 				newRole = "Regular"
+				fmt.Print("Sending emergency stop...\n")
 				emergencyStop <- true // We need to stop the master routine
+				fmt.Print("Emergency stop sent\n")
 			}
 
 			if newRole != currentRole {
