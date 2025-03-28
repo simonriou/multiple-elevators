@@ -199,12 +199,6 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 		var mNew = p.New
 		var mLost = p.Lost
 
-		// Display the peer update
-		fmt.Printf("Peer update:\n")
-		fmt.Printf("  Peers:    %v\n", mPeers)
-		fmt.Printf("  New:      %v\n", mNew)
-		fmt.Printf("  Lost:     %v\n", mLost)
-
 		switch { // Lost or New Peer?
 		case mNew != (peers.ElevIdentity{}): // A new peer joins the network
 
@@ -317,6 +311,12 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 				}
 			}
 			// Section_END -- RE-ASSIGNING ORDERS
+
+			// Display the peer update
+			fmt.Printf("Peer update:\n")
+			fmt.Printf("  Peers:    %v\n", mPeers)
+			fmt.Printf("  New:      %v\n", mNew)
+			fmt.Printf("  Lost:     %v\n", mLost)
 		}
 	}
 }
