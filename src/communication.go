@@ -36,6 +36,8 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 	var elevatorOrdersMotorStop = make([][]Order, numElev) // The last received local request to one of the elevators
 
 	var handledPowerLoss = false
+	var hasPowerLoss = false
+	_ = hasPowerLoss
 
 	go func() {
 		for {
@@ -44,6 +46,8 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 
 			for id, t := range lastSeen {
 				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 && !handledPowerLoss { // and localrequest is empty
+
+					hasPowerLoss = true
 
 					// Signal that the elevator with the corresponding id is inactive
 					mutex_activeElevators.Lock()
@@ -95,6 +99,23 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 		lockMutexes(&mutex_lastSeenMotorStop)
 		lastSeen[id] = time.Time{}
 		unlockMutexes(&mutex_lastSeenMotorStop)
+
+		if hasPowerLoss { // We have a state update AND a power loss -> we don't have a power loss anymore
+			hasPowerLoss = false
+			handledPowerLoss = false // Reset the flag
+
+			// Add the elevator back to the activeElevators list
+			mutex_activeElevators.Lock()
+			alreadyExists := isElevatorActive(id)
+			if !alreadyExists {
+				activeElevators = append(activeElevators, id)
+			}
+			activeElevators = sortElevators(activeElevators)
+			mutex_activeElevators.Unlock()
+
+			activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
+
+		}
 	}
 
 }
