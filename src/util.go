@@ -390,6 +390,8 @@ outerloop:
 					isAlreadyActive := isElevatorActive(id)
 					mutex_activeElevators.Unlock()
 
+					fmt.Printf("Am I active?: %v\n", isAlreadyActive)
+
 					if isAlreadyActive {
 						mutex_activeElevators.Lock()
 						removeElevator(id) // Remove the elevator from the list of active elevators
