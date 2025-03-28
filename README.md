@@ -94,3 +94,5 @@ The system is composed of **three elevators**, each one with a different role: a
 
 # Unstable features
 - Packet loss was not taken into account.
+- Elevators that experience power loss (no script termination, only motor power loss) and that don't have any pending order are not flaged as inactive.
+- When an elevator experiences power loss and that another one takes the hall order that it had, the Hall Light turn off is delayed until the first elevator gets back on and goes for it.
