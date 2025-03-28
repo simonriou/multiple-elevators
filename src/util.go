@@ -373,9 +373,10 @@ outerloop:
 			switch {
 			case ableToCloseDoors:
 				Timer = Timer - sleepDuration
+
 			case !ableToCloseDoors:
 				Timer = Inital_duration
-
+				fmt.Print("I am unable to close doors.\n")
 			}
 		}
 		time.Sleep(sleepDuration)
