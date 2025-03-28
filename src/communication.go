@@ -61,7 +61,8 @@ func findUniqueOrders(oldOrders, newOrders []Order) []Order {
 func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
 	hallOrderCompletedTx chan []Order,
-	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int) {
+	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
+	retrieveMissingInfoTx chan bool) {
 
 	fmt.Print("New master routine started\n")
 
@@ -170,6 +171,9 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 			// Send the cab orders to the new elevator
 			retrieveCabOrdersTx <- CabOrderMsg{id, lostCabOrders}
+
+			// We use this case to also send the missing information to the new elevator
+			retrieveMissingInfoTx <- isOneMissing
 		}
 
 	}

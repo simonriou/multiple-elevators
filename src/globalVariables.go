@@ -20,6 +20,7 @@ const ( // Ports
 	ActiveElevators_PORT                    // Active elevators port (all)
 	RetrieveCabOrders_PORT                  // Retrieve cab orders port (slave <-> master)
 	AskForCabOrders_PORT                    // Ask for cab orders port (master <-> slave)
+	MissingElev_PORT                        // Missing elevator port (all)
 )
 
 const (

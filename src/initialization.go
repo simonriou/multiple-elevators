@@ -29,10 +29,6 @@ func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
 		isWaiting = false // Initialize the isWaiting variable
 		mutex_waiting.Unlock()
 
-		mutex_waiting.Lock()
-		isOneMissing = false // Initialize the isOneMissing variable
-		mutex_waiting.Unlock()
-
 		drv_finishedInitialization <- true
 	}()
 

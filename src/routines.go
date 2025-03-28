@@ -192,7 +192,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
 	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int) {
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, retrieveMissingInfoTx chan bool) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
@@ -213,13 +213,19 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			// Thus it becomes automatically a master.
 			// We need to force it to become a regular elevator when it joins back the network.
 
-			if mNew.Id == id && isOneMissing {
-				fmt.Print("I am the new elevator.\n")
+			mutex_missing.Lock()
+			var elevMissing = isOneMissing
+			mutex_missing.Unlock()
+
+			if mNew.Id == id && elevMissing {
+				fmt.Print("I AM THE NEW ONE.\n")
 				currentRole = "Regular"
 				roleChannel <- currentRole
 			}
 
+			mutex_missing.Lock()
 			isOneMissing = false
+			mutex_missing.Unlock()
 
 			// The master updates the activeElevators array and sends it to the other elevators
 			if currentRole == "Master" {
@@ -234,7 +240,6 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 				mutex_activeElevators.Unlock()
 
 				activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevator
-
 			}
 
 		case len(mLost) > 0: // A peer leaves the network
@@ -264,7 +269,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 					newRole = "Master"
 					go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-						retrieveCabOrdersTx, askForCabOrdersRx)
+						retrieveCabOrdersTx, askForCabOrdersRx, retrieveMissingInfoTx)
 					newStatesTx <- backupStates // Sending the backupStates to the new master
 
 				}
@@ -392,6 +397,17 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 				drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
 
 			}
+		}
+	}
+}
+
+func handleRetrieveMissingElev(retrieveMissingInfoRx chan bool) {
+	for {
+		a := <-retrieveMissingInfoRx // RETRIEVE MISSING ELEVATOR
+		if a {
+			mutex_missing.Lock()
+			isOneMissing = a
+			mutex_missing.Unlock()
 		}
 	}
 }
