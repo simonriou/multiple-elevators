@@ -195,8 +195,15 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
+		var mPeers = p.Peers
 		var mNew = p.New
 		var mLost = p.Lost
+
+		// Display the peer update
+		fmt.Printf("Peer update:\n")
+		fmt.Printf("  Peers:    %v\n", mPeers)
+		fmt.Printf("  New:      %v\n", mNew)
+		fmt.Printf("  Lost:     %v\n", mLost)
 
 		switch { // Lost or New Peer?
 		case mNew != (peers.ElevIdentity{}): // A new peer joins the network
@@ -312,13 +319,8 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			// Section_END -- RE-ASSIGNING ORDERS
 		}
 
-		updatedPeers := <-peerUpdateCh // Get the updated peers list
-
-		// Display the peer update
-		fmt.Printf("Peer update:\n")
-		fmt.Printf("  Peers:    %v\n", updatedPeers.Peers)
-		fmt.Printf("  New:      %v\n", updatedPeers.New)
-		fmt.Printf("  Lost:     %v\n", updatedPeers.Lost)
+		// Display role changes
+		fmt.Printf("I am elevator ID %v with role %s\n", id, currentRole)
 	}
 }
 
