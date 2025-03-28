@@ -174,6 +174,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 			// We use this case to also send the missing information to the new elevator
 			retrieveMissingInfoTx <- isOneMissing
+			fmt.Printf("As a master, I sent the info that isOneMissing is: %v\n", isOneMissing)
 		}
 
 	}
