@@ -360,7 +360,7 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 	}
 }
 
-func StopBlocker(Inital_duration time.Duration, hallBtnTx chan elevio.ButtonEvent, id int, activeElevatorsChannelTx chan []int) { // Block the elevator for a certain duration
+func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
 outerloop:
@@ -373,44 +373,9 @@ outerloop:
 			switch {
 			case ableToCloseDoors:
 				Timer = Timer - sleepDuration
-
-				// Check if the elevator is inactive
-				mutex_activeElevators.Lock()
-				alreadyExists := isElevatorActive(id)
-				mutex_activeElevators.Unlock()
-
-				if !alreadyExists {
-					// Add it back
-					mutex_activeElevators.Lock()
-					activeElevators = append(activeElevators, id)
-					activeElevators = sortElevators(activeElevators)
-					mutex_activeElevators.Unlock()
-					activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
-				}
-
 			case !ableToCloseDoors:
 				Timer = Inital_duration
-				// Get the current hall orders and redistribute them
-				currentHallOrders := make([]Order, 0)
-				for _, order := range elevatorOrders {
-					if order.OrderType == hall {
-						currentHallOrders = append(currentHallOrders, order)
-					}
-				}
 
-				mutex_activeElevators.Lock()
-				alreadyExists := isElevatorActive(id)
-
-				if alreadyExists {
-					removeElevator(id) // Remove the elevator from the activeElevators list
-				}
-
-				activeElevators = sortElevators(activeElevators)
-				mutex_activeElevators.Unlock()
-
-				activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
-
-				redistributeOrders(currentHallOrders, hallBtnTx)
 			}
 		}
 		time.Sleep(sleepDuration)

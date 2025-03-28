@@ -157,8 +157,7 @@ func main() {
 
 	// Starting the goroutines for tracking the position of the elevator & attending to specific orders
 	go trackPosition(drv_floors2, drv_DirectionChange, &d) // Starts tracking the position of the elevator
-	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange, singleStateTx, id, localStatesForCabOrders, hallBtnTx,
-		activeElevatorsChannelTx)
+	go attendToSpecificOrder(&d, consumer2drv_floors, drv_newOrder, drv_DirectionChange, singleStateTx, id, localStatesForCabOrders)
 
 	// Section_START -- RERTIEVE CAB ORDERS
 	// We send our ID to the master to ask for the cab orders
