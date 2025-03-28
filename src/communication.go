@@ -243,6 +243,9 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			length_old := len(oldHallOrders)
 			length_new := len(newHallOrders)
 
+			fmt.Printf("Old hall orders: %v\n", oldHallOrders)
+			fmt.Printf("New hall orders: %v\n", newHallOrders)
+
 			if length_new < length_old {
 				removed_hallOrders := findUniqueOrders(oldHallOrders, newHallOrders)
 				hallOrderCompletedTx <- removed_hallOrders
