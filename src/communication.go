@@ -62,7 +62,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
 	hallOrderCompletedTx chan []Order,
 	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	retrieveMissingInfoTx chan bool) {
+	retrieveMissingInfoTx chan bool, askForMissingInfoRx chan int) {
 
 	fmt.Print("New master routine started\n")
 
@@ -172,6 +172,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Send the cab orders to the new elevator
 			retrieveCabOrdersTx <- CabOrderMsg{id, lostCabOrders}
 
+		case id := <-askForMissingInfoRx:
+			_ = id
 			// We use this case to also send the missing information to the new elevator
 			retrieveMissingInfoTx <- isOneMissing
 			fmt.Printf("As a master, I sent the info that isOneMissing is: %v\n", isOneMissing)

@@ -21,6 +21,7 @@ const ( // Ports
 	RetrieveCabOrders_PORT                  // Retrieve cab orders port (slave <-> master)
 	AskForCabOrders_PORT                    // Ask for cab orders port (master <-> slave)
 	MissingElev_PORT                        // Missing elevator port (all)
+	AskForMissingInfo_PORT                  // Ask for missing info port (all)
 )
 
 const (
