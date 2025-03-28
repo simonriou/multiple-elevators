@@ -84,7 +84,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 					isWaiting = true
 					mutex_waiting.Unlock()
 					elevio.SetDoorOpenLamp(true)
-					StopBlocker(3000 * time.Millisecond)
+					StopBlocker(3000*time.Millisecond, id)
 					elevio.SetDoorOpenLamp(false)
 					mutex_waiting.Lock()
 					isWaiting = false
@@ -131,7 +131,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				unlockMutexes(&mutex_d, &mutex_elevatorOrders)
 
 				elevio.SetDoorOpenLamp(true)
-				StopBlocker(3000 * time.Millisecond)
+				StopBlocker(3000*time.Millisecond, id)
 				elevio.SetDoorOpenLamp(false)
 
 				// After deleting the relevant orders at our floor => find, if any, find the next currentOrder

@@ -360,9 +360,10 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 	}
 }
 
-func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
+func StopBlocker(Inital_duration time.Duration, id int) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
+	closedExecuted := false
 outerloop:
 	for {
 		switch {
@@ -374,9 +375,18 @@ outerloop:
 			case ableToCloseDoors:
 				Timer = Timer - sleepDuration
 
+				if closedExecuted {
+					fmt.Printf("I am now able to close doors. My ID is: %v\n", id)
+					closedExecuted = false
+				}
+
 			case !ableToCloseDoors:
 				Timer = Inital_duration
-				fmt.Print("I am unable to close doors.\n")
+
+				if !closedExecuted {
+					fmt.Printf("I am unable to close doors. My ID is: %v\n", id)
+					closedExecuted = true
+				}
 			}
 		}
 		time.Sleep(sleepDuration)
