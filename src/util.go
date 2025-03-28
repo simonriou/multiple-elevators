@@ -329,7 +329,6 @@ func addOrder(floor int, direction OrderDirection, typeOrder OrderType) { // Add
 // It takes into account if there are multiple orders to the same floor
 // Since elevatorOrders is sorted, we can just delete from left to right until there are no orders with the same floor left
 func PopOrders() {
-	//fmt.Printf("Before deleting orders from elevatorOrders: %v\n", elevatorOrders)
 	if len(elevatorOrders) != 0 {
 		floor_to_pop := elevatorOrders[0].Floor
 
@@ -346,7 +345,6 @@ func PopOrders() {
 		// Now that we've calculated the number of elements to delete, update elevatorOrders
 		elevatorOrders = elevatorOrders[ndelete:]
 	}
-	//fmt.Printf("After deleting orders from elevatorOrders: %v\n", elevatorOrders)
 }
 
 func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order, current_floor float32) { // Change the direction based on the current order

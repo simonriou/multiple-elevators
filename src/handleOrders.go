@@ -2,7 +2,6 @@ package main
 
 import (
 	"Driver-go/elevio"
-	"fmt"
 	"math"
 	"time"
 )
@@ -75,8 +74,6 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
-				fmt.Print("Sent from attendToSpecificOrder (case consumer2)\n")
-				// fmt.Printf("Reached floor: %v, sending orders: %v\n", a, latestState.LocalRequests)
 				localStatesForCabOrders <- StateMsg{id, latestState}
 
 				mutex_waiting.Lock()
@@ -112,9 +109,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 			}
 			unlockMutexes(&mutex_d, &mutex_elevatorOrders, &mutex_posArray)
 		case a := <-drv_newOrder: // If we get a new order => update current order and see if we need to redirect our elevator
-			// fmt.Printf("Received order in attendToSpecificOrder\n")
 			lockMutexes(&mutex_posArray)
-			// fmt.Printf("Made it past the mutex locks in attendtospecific\n")
 
 			current_order = a
 			current_position := extractPos()
@@ -126,7 +121,6 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
-				fmt.Print("Sent from attendToSpecificOrder (case drv_newOrder)\n")
 				localStatesForCabOrders <- StateMsg{id, latestState}
 				unlockMutexes(&mutex_d, &mutex_elevatorOrders)
 
@@ -317,8 +311,6 @@ func sortAllOrders(elevatorOrders *[]Order, d elevio.MotorDirection, posArray [2
 	}
 
 	// Handle that rare case where the motorDirection is MD_Stop and we have multiple orders
-
-	// fmt.Printf("Made it past the inital checks in sortAllOrders\n")
 
 	// Creating the datatypes specfic to our function
 	copy_posArray := posArray

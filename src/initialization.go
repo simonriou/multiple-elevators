@@ -14,16 +14,13 @@ func initSingleElev(d elevio.MotorDirection, drv_floors chan int) {
 		elevio.SetMotorDirection(d)
 		for {
 			a := <-drv_floors
-			fmt.Printf("%v\n", a)
 			if a == 0 {
 				d = elevio.MD_Stop
 				elevio.SetMotorDirection(d)
 				break
 			}
 		}
-		//fmt.Println("Found 0 floor")
 		ableToCloseDoors = true
-		//turnOffLights(Order{0, -1, 0}, true)
 
 		drv_finishedInitialization <- true
 	}()
@@ -61,10 +58,6 @@ func getFlags() (string, string, int) {
 		fmt.Println("Port must be a number")
 		os.Exit(1)
 	}
-
-	//fmt.Printf("Working on address: %v\n", "localhost:"+port)
-	//fmt.Printf("Role passed: %v\n", role)
-	//fmt.Printf("Id passed: %v\n", id)
 
 	return port, role, id
 }

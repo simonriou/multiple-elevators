@@ -4,7 +4,6 @@ import (
 	"Driver-go/elevio"
 	"Network-go/network/bcast"
 	"context"
-	"fmt"
 	"math"
 	"time"
 )
@@ -57,11 +56,10 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 
 	var lastSeen = make(map[int]time.Time)                 // A map for keeping track of the times since we last saw the elevators
 	var elevatorOrdersMotorStop = make([][]Order, numElev) // The last received local request to one of the elevators
-	
+
 	var handledPowerLoss = false
 	var hasPowerLoss = false
 	_ = hasPowerLoss
-
 
 	for i, _ := range lastSeen {
 		lastSeen[i] = time.Now()
@@ -73,8 +71,6 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 			lockMutexes(&mutex_lastSeenMotorStop)
 
 			for id, t := range lastSeen {
-				fmt.Printf("id: %v, t:%v\n", id, t)
-				fmt.Printf("ElevatorsOrdersMotorStop: %v\n", elevatorOrdersMotorStop)
 				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 && !handledPowerLoss {
 
 					hasPowerLoss = true
@@ -190,8 +186,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	ctx context.Context, hallBtnTx chan elevio.ButtonEvent, activeElevatorsChannelTx chan []int,
 	allStatesFromMasterTx chan [numElev]ElevState, singleStateFromSlaveRx chan StateMsg) {
 
-	fmt.Print("New master routine started\n")
-
 	go bcast.Receiver(HallOrderRawBTN_PORT, hallBtnRx)
 	go bcast.Receiver(SingleElevatorState_PORT, singleStateRx)
 	go bcast.Transmitter(HallOrder_PORT, hallOrderTx)
@@ -222,8 +216,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 		select {
 		case a := <-hallBtnRx:
 
-			// fmt.Print("Master received new hall order\n")
-
 			// Retrieves the information on the working elevators
 			var workingElevNb = len(activeElevators)
 			workingElevs := make([]ElevState, workingElevNb)
@@ -241,7 +233,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			for i, state := range workingElevs {
 				if state.Behavior != "Uninitialized" {
 					cost := calculateCost(state, btnPressToOrder(a))
-					//fmt.Printf("The cost of assigning the hall order to elevator: %d, with the corresponding state: %v, is: %f\n", i, state, cost)
 					orderCosts[i] = cost
 				}
 			}
@@ -256,7 +247,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 			// Retrieve the id of the best elevator (relative to allStates)
 			bestElevator = indexMapping[bestElevator]
-			// fmt.Printf("Best elevator according to the cost function: %v\n", bestElevator)
 
 			// Update backupStates with the new order
 			mutex_backup.Lock()
@@ -266,7 +256,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 
 			// Send the order to a slave
-			// fmt.Printf("HallOrderMsg: %v\n", HallOrderMessage)
 			hallOrderTx <- HallOrderMessage
 
 		case a := <-singleStateRx: // A state update on singleStateRx
@@ -287,9 +276,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			newHallOrders := extractHallOrders(newStateOrders)
 			length_old := len(oldHallOrders)
 			length_new := len(newHallOrders)
-
-			fmt.Printf("Old hall orders: %v\n", oldHallOrders)
-			fmt.Printf("New hall orders: %v\n", newHallOrders)
 
 			if length_new < length_old {
 				removed_hallOrders := findUniqueOrders(oldHallOrders, newHallOrders)
@@ -325,7 +311,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			retrieveCabOrdersTx <- CabOrderMsg{id, lostCabOrders}
 
 		case <-ctx.Done():
-			fmt.Print("\nMaster routine stopped\n")
 			return
 		}
 

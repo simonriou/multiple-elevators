@@ -50,8 +50,6 @@ func handleElevatorUpdate(activeElevatorsChannelRx chan []int) {
 		lockMutexes(&mutex_activeElevators)
 		activeElevators = a
 		unlockMutexes(&mutex_activeElevators)
-
-		fmt.Printf("Active elevators: %v\n", activeElevators)
 	}
 }
 
@@ -60,15 +58,11 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 	for {
 		a := <-drv_buttons // BUTTON UPDATE
 
-		// fmt.Print("\ndrv_buttons received button press\n")
-
 		// If it's a hall order, forwards it to the master
 		switch {
 		case a.Button == elevio.BT_HallUp || a.Button == elevio.BT_HallDown: // If it's a hall order
 
-			//fmt.Printf("Hall order from drv_buttons waiting to be sent to the master...\n")
 			hallBtnTx <- a // Send the hall order to the master
-			//fmt.Printf("Hall order from drv_buttons sent to the master!\n\n")
 
 		case a.Button == elevio.BT_Cab: // Else (it's a cab)
 
@@ -80,12 +74,9 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 			// Update & send the new state of the elevator to the master
 			updateState(d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
-			fmt.Print("Sent from handleButtonPress\n")
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
-			//fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders...\n")
 			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
-			//fmt.Printf("Cab order from drv_buttons sent to attend to specificOrders!\n\n")
 		}
 	}
 }
@@ -99,7 +90,6 @@ func handleNewFloorReached(consumer1drv_floors chan int, d *elevio.MotorDirectio
 
 		updateState(d, lastFloor, elevatorOrders, &latestState)
 		singleStateTx <- StateMsg{id, latestState}
-		fmt.Print("Sent from handleNewFloorReached\n")
 	}
 }
 
@@ -183,9 +173,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 
 			newHallOrder := a.HallOrder
 
-			// fmt.Print("Attempting to lock mutexes\n")
 			lockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
-			// fmt.Print("Mutexes locked\n")
 
 			addOrder(newHallOrder.Floor, newHallOrder.Direction, hall) // Add the hall order to the local elevatorOrders
 			sortAllOrders(&elevatorOrders, *d, posArray)               // Sort the orders
@@ -194,11 +182,8 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 			// Update & send the new state of the elevator to the master
 			updateState(d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
-			fmt.Print("Sent from handleNewHallOrder\n")
 
-			// fmt.Print("Attempting to unlock mutexes\n")
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
-			// fmt.Print("Mutexes unlocked\n")
 
 			drv_newOrder <- first_element // Send the first element of the elevatorOrders to the driver
 		}
@@ -250,7 +235,6 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 		case len(mLost) > 0: // A peer leaves the network
 
 			lostElevator := mLost[0] // We assume that we only have one down elevator at a time
-			fmt.Printf("We lost elevator ID %v with role %s\n", lostElevator.Id, lostElevator.Role)
 
 			// Section_START -- CHANGING ROLES
 			newRole := currentRole
@@ -283,14 +267,9 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 				}
 			}
 
-			fmt.Print("Length of mPeers: ", len(mPeers), "\n")
-			fmt.Print("Length of mLost: ", len(mLost), "\n")
-
 			if len(mPeers) == 0 && len(mLost) > 0 { // This means that we were disconnected from the network
 				newRole = "Regular"
-				fmt.Print("Cancelling...\n")
 				cancel()
-				fmt.Print("Cancelled\n")
 			}
 
 			if newRole != currentRole {
@@ -337,7 +316,6 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 		}
 
 		// Display role changes
-		fmt.Printf("I am elevator ID %v with role %s\n", id, currentRole)
 	}
 }
 
@@ -403,7 +381,6 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 				// Update & send the new state of the elevator to the master
 				updateState(d, lastFloor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
-				fmt.Print("Sent from handleRetrieveCab\n")
 
 				unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
@@ -423,8 +400,6 @@ func receiveSpamFromMaster(allStatesFromMasterRx chan [numElev]ElevState, id int
 		mutex_elevatorOrders.Lock()
 		elevatorOrders = myState.LocalRequests // Update the local orders array
 		mutex_elevatorOrders.Unlock()
-
-		// fmt.Printf("What I received from master: %v\n", a)
 	}
 }
 
@@ -437,7 +412,5 @@ func receiveSpamFromSlave(singleStateFromSlaveRx chan StateMsg) {
 		mutex_backup.Lock()
 		backupStates[slaveID] = slaveState // Update the backup states array
 		mutex_backup.Unlock()
-
-		// fmt.Printf("Received state from slave %d: %v\n", slaveID, slaveState)
 	}
 }
