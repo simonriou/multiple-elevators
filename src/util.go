@@ -360,7 +360,7 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 	}
 }
 
-func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
+func StopBlocker(Inital_duration time.Duration, hallBtnTx chan elevio.ButtonEvent) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
 outerloop:
@@ -373,8 +373,20 @@ outerloop:
 			switch {
 			case ableToCloseDoors:
 				Timer = Timer - sleepDuration
+
+				// Get the current hall orders and redistribute them
+				currentHallOrders := make([]Order, 0)
+				for _, order := range elevatorOrders {
+					if order.OrderType == hall {
+						currentHallOrders = append(currentHallOrders, order)
+					}
+				}
+
+				redistributeOrders(currentHallOrders, hallBtnTx)
+
 			case !ableToCloseDoors:
 				Timer = Inital_duration
+
 			}
 		}
 		time.Sleep(sleepDuration)
