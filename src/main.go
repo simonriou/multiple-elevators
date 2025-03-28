@@ -4,6 +4,7 @@ import (
 	"Driver-go/elevio"
 	"Network-go/network/bcast"
 	"Network-go/network/peers"
+	"context"
 )
 
 func main() {
@@ -38,7 +39,6 @@ func main() {
 	drv_newOrder := make(chan Order)
 	drv_DirectionChange := make(chan elevio.MotorDirection)
 	localStatesForCabOrders := make(chan StateMsg) // ALL - Turn off cab lights after completing order
-	emergencyStop := make(chan bool)               // ALL - Emergency stop channel
 
 	drv_buttons_forCabLights := make(chan elevio.ButtonEvent, 100)
 	drv_buttons_forOrderHandling := make(chan elevio.ButtonEvent, 100)
@@ -93,6 +93,11 @@ func main() {
 
 	// Section_END -- CHANNELS
 
+	// Create a context for stopping unwanted master routines
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = ctx
+	_ = cancel
+
 	askForCabOrdersTx <- id // Ask for the cab orders from the master
 
 	// Section_START -- ROLES-SPECIFIC ACTIONS
@@ -103,7 +108,7 @@ func main() {
 
 		// Starting the Master Routine
 		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-			retrieveCabOrdersTx, askForCabOrdersRx, emergencyStop)
+			retrieveCabOrdersTx, askForCabOrdersRx, ctx)
 
 		// This is the initial states of the elevators
 		var allStates [numElev]ElevState
@@ -158,7 +163,7 @@ func main() {
 	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx)      // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, emergencyStop) // Listens to peer updates on the network
+		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, ctx) // Listens to peer updates on the network
 	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx) // Listens for completed hall orders
 	go handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders)
 	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)

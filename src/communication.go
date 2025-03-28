@@ -3,6 +3,7 @@ package main
 import (
 	"Driver-go/elevio"
 	"Network-go/network/bcast"
+	"context"
 	"fmt"
 	"math"
 )
@@ -15,13 +16,6 @@ func extractHallOrders(orders []Order) []Order {
 		}
 	}
 	return hallOrders
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // Function to find elements in oldStateOrders that are not in newStateOrders and vice versa
@@ -62,7 +56,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
 	hallOrderCompletedTx chan []Order,
 	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	emergencyStop chan bool) {
+	ctx context.Context) {
 
 	fmt.Print("New master routine started\n")
 
@@ -179,14 +173,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			retrieveCabOrdersTx <- CabOrderMsg{id, lostCabOrders}
 			fmt.Print("\naskForCabOrdersRx done\n")
 
-		case a := <-emergencyStop:
-			fmt.Print("\nEmergency stop in use\n")
-			if a {
-				// Emergency stop received
-				fmt.Print("Emergency stop received\n")
-				return
-			}
-			fmt.Print("\nEmergency stop done\n")
+		case <-ctx.Done():
+			return
 		}
 
 	}
