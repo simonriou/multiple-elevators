@@ -174,6 +174,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			fmt.Print("\naskForCabOrdersRx done\n")
 
 		case <-ctx.Done():
+			fmt.Print("\nMaster routine stopped\n")
 			return
 		}
 
