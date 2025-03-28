@@ -254,7 +254,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 					newRole = "Master"
 					go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-						retrieveCabOrdersTx, askForCabOrdersRx, ctx)
+						retrieveCabOrdersTx, askForCabOrdersRx, ctx, hallBtnTx, activeElevatorsChannelTx)
 					newStatesTx <- backupStates // Sending the backupStates to the new master
 
 				}
@@ -324,9 +324,9 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 	}
 }
 
-func handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx chan []Order) {
+func handleTurnOffLightsHallOrderCompleted(hallOrderCompletedLightsRx chan []Order) {
 	for {
-		a := <-hallOrderCompletedRx // HALL ORDER COMPLETED
+		a := <-hallOrderCompletedLightsRx // HALL ORDER COMPLETED
 		turnOffHallLights(a...)
 	}
 }

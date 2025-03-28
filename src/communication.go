@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"time"
 )
 
 func extractHallOrders(orders []Order) []Order {
@@ -16,6 +17,80 @@ func extractHallOrders(orders []Order) []Order {
 		}
 	}
 	return hallOrders
+}
+
+func redistributeOrders(localRequest []Order, hallBtnTx chan elevio.ButtonEvent) {
+	// Re-assign the hall orders, i.e. send them again to the master
+	for _, order := range localRequest {
+		if order.OrderType == hall {
+			hallBtnTx <- elevio.ButtonEvent{Button: elevio.ButtonType(order.Direction), Floor: order.Floor}
+		}
+	}
+}
+
+func detectMotorStop(newElevatorActivity chan elevatorActivity,
+	hallBtnTx chan elevio.ButtonEvent, activeElevatorsChannelTx chan []int,
+	idCompletedHallOrderForTimer chan int) {
+	var lastSeen = make(map[int]time.Time)                 // A map for keeping track of the times since we last saw the elevators
+	var elevatorOrdersMotorStop = make([][]Order, numElev) // The last received local request to one of the elevators
+
+	go func() {
+		for {
+			// Timer for all the elevators
+			lockMutexes(&mutex_lastSeenMotorStop)
+
+			for id, t := range lastSeen {
+				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 { // and localrequest is empty
+					// Signal that the elevator with the corresponding id is inactive
+					mutex_activeElevators.Lock()
+					alreadyExists := isElevatorActive(id)
+
+					if alreadyExists {
+						removeElevator(id) // Remove the elevator from the activeElevators list
+					}
+
+					activeElevators = sortElevators(activeElevators)
+					mutex_activeElevators.Unlock()
+
+					activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
+
+					// Send hallOrders to hallBtnTx
+
+					lockMutexes(&mutex_elevatorOrdersMotorStop)
+					redistributeOrders(elevatorOrdersMotorStop[id], hallBtnTx)
+					unlockMutexes(&mutex_elevatorOrdersMotorStop)
+				}
+			}
+			unlockMutexes(&mutex_lastSeenMotorStop)
+			time.Sleep(pollRateMotorStop)
+		}
+	}()
+
+	go func() {
+		for {
+			// Register new elevatorActivity
+			a := <-newElevatorActivity
+			id := a.id
+			timestamp := a.timestamp
+
+			lockMutexes(&mutex_lastSeenMotorStop)
+			lastSeen[id] = timestamp
+			unlockMutexes(&mutex_lastSeenMotorStop)
+
+			lockMutexes(&mutex_elevatorOrdersMotorStop)
+			elevatorOrdersMotorStop[id] = a.localRequests
+			unlockMutexes(&mutex_elevatorOrdersMotorStop)
+		}
+	}()
+
+	for {
+		// We have receive confirmation that the hallOrder was attended to
+		id := <-idCompletedHallOrderForTimer
+		lockMutexes(&mutex_lastSeenMotorStop)
+		lastSeen[id] = time.Time{}
+		unlockMutexes(&mutex_lastSeenMotorStop)
+	}
+
 }
 
 // Function to find elements in oldStateOrders that are not in newStateOrders and vice versa
@@ -56,7 +131,7 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState,
 	hallOrderCompletedTx chan []Order,
 	retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	ctx context.Context) {
+	ctx context.Context, hallBtnTx chan elevio.ButtonEvent, activeElevatorsChannelTx chan []int) {
 
 	fmt.Print("New master routine started\n")
 
@@ -72,6 +147,10 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	// Define an array of elevator states for continously monitoring the elevators
 	// It will be updated whenever we receive a new state from the slaves
 	var allStates = <-newStatesRx
+
+	newElevatorActivity := make(chan elevatorActivity) // Functionality for the motor stop
+	idCompletedHallOrderForTimer := make(chan int)
+	go detectMotorStop(newElevatorActivity, hallBtnTx, activeElevatorsChannelTx, idCompletedHallOrderForTimer)
 
 	mutex_backup.Lock()
 	backupStates = allStates
@@ -97,7 +176,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			// Calculate the cost of assigning the order to each elevator
 			orderCosts := make([]float64, workingElevNb)
 
-			//PrintButtonEvent(a)
 			for i, state := range workingElevs {
 				if state.Behavior != "Uninitialized" {
 					cost := calculateCost(state, btnPressToOrder(a))
@@ -126,8 +204,15 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 		case a := <-singleStateRx: // A state update on singleStateRx
 
+			// Send the state update for detecting motor stop
+			newElevatorActivity <- elevatorActivity{
+				id:            a.Id,
+				timestamp:     time.Now(),
+				localRequests: a.State.LocalRequests,
+			}
+
 			// Compare the old and new state and send a message on orderCompleted so that the order lights get taken care of
-			//        Assume that we dont delete and add hallOrders at the same time
+			// Assume that we dont delete and add hallOrders at the same time
 			oldStateOrders := allStates[a.Id].LocalRequests
 			newStateOrders := a.State.LocalRequests
 
@@ -135,9 +220,11 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			newHallOrders := extractHallOrders(newStateOrders)
 			length_old := len(oldHallOrders)
 			length_new := len(newHallOrders)
+
 			if length_new < length_old {
 				removed_hallOrders := findUniqueOrders(oldHallOrders, newHallOrders)
 				hallOrderCompletedTx <- removed_hallOrders
+				idCompletedHallOrderForTimer <- a.Id // Send the id of the elevator that completed the hall order
 			}
 
 			findUniqueOrders(oldHallOrders, newHallOrders)
@@ -189,21 +276,6 @@ func PrimaryBackupRoutine(backupStatesRx chan [numElev]ElevState) {
 
 }
 
-func PrintButtonEvent(event elevio.ButtonEvent) {
-	var buttonType string
-	switch event.Button {
-	case elevio.BT_HallUp:
-		buttonType = "Hall Up"
-	case elevio.BT_HallDown:
-		buttonType = "Hall Down"
-	case elevio.BT_Cab:
-		buttonType = "Cab"
-	default:
-		buttonType = "Unknown"
-	}
-	fmt.Printf("Button Event - Floor: %d, Button: %s\n", event.Floor, buttonType)
-}
-
 // Cost function for assigning an order to an elevator.
 func calculateCost(elevator ElevState, order Order) float64 {
 	// Base cost is the absolute distance from the elevator to the order
@@ -232,17 +304,3 @@ func calculateCost(elevator ElevState, order Order) float64 {
 
 	return cost
 }
-
-/*
-// Cost function for assigning an order to an elevator.
-func calculateCost(elevator ElevState, order Order) float64 {
-	// Base cost is the absolute distance from the elevator to the order
-	cost := math.Abs(float64(order.Floor - elevator.Floor))
-	if elevator.Behavior == "Idle" {
-		// If the elevator is idle, we add a small cost to the cost of the order
-		return cost
-	}
-
-	return cost
-}
-*/

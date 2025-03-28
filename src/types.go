@@ -1,6 +1,8 @@
 // This file contains the type declarations for the client
 package main
 
+import "time"
+
 type ElevState struct { // Struct for the state of the elevator
 	Behavior      string  // 'moving' or 'idle'
 	Floor         int     // The floor the elevator is at
@@ -43,4 +45,10 @@ type Order struct { // Struct for the orders
 	Floor     int
 	Direction OrderDirection // 1 for up, -1 for down
 	OrderType OrderType      // 0 for hall, 1 for cab
+}
+
+type elevatorActivity struct {
+	id            int
+	timestamp     time.Time
+	localRequests []Order
 }
