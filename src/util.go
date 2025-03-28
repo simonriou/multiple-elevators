@@ -360,10 +360,9 @@ func changeDirBasedOnCurrentOrder(d *elevio.MotorDirection, current_order Order,
 	}
 }
 
-func StopBlocker(Inital_duration time.Duration, id int, activeElevatorsChannelTx chan []int) { // Block the elevator for a certain duration
+func StopBlocker(Inital_duration time.Duration) { // Block the elevator for a certain duration
 	Timer := Inital_duration
 	sleepDuration := 30 * time.Millisecond
-	closedExecuted := false
 outerloop:
 	for {
 		switch {
@@ -374,36 +373,9 @@ outerloop:
 			switch {
 			case ableToCloseDoors:
 				Timer = Timer - sleepDuration
-
-				if closedExecuted {
-					fmt.Printf("I am now able to close doors. My ID is: %v\n", id)
-					closedExecuted = false
-				}
-
 			case !ableToCloseDoors:
 				Timer = Inital_duration
 
-				if !closedExecuted {
-					fmt.Printf("I am unable to close doors. My ID is: %v\n", id)
-
-					mutex_activeElevators.Lock()
-					isAlreadyActive := isElevatorActive(id)
-					mutex_activeElevators.Unlock()
-
-					fmt.Printf("Am I active?: %v\n", isAlreadyActive)
-
-					if isAlreadyActive {
-						mutex_activeElevators.Lock()
-						removeElevator(id) // Remove the elevator from the list of active elevators
-						mutex_activeElevators.Unlock()
-
-						fmt.Printf("I am removing myself from the list of active elevators. My ID is: %v\n", id)
-					}
-
-					activeElevatorsChannelTx <- activeElevators
-
-					closedExecuted = true
-				}
 			}
 		}
 		time.Sleep(sleepDuration)
