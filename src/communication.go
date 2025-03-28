@@ -12,7 +12,7 @@ import (
 func spamMaster(singleStateFromSlaveTx chan StateMsg, id int) {
 	// Send the state of the elevator to the master periodically
 	for {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 		mutex_state.Lock()
 		singleStateFromSlaveTx <- StateMsg{
 			Id:    id,
@@ -25,7 +25,7 @@ func spamMaster(singleStateFromSlaveTx chan StateMsg, id int) {
 func spamSlaves(allStatesFromMasterTx chan [numElev]ElevState) {
 	// Send the state of the elevator to the slaves periodically
 	for {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 		mutex_backup.Lock()
 		allStatesFromMasterTx <- backupStates
 		mutex_backup.Unlock()
