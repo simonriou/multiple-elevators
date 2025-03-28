@@ -378,3 +378,27 @@ func relayDrvButtons(source chan elevio.ButtonEvent, consumers ... chan elevio.B
 		}
 	}
 }
+
+func relayHallOrderCompleteTx(source chan []Order, consumers ...chan []Order) {
+	for {
+		value := <-source
+		for _, consumer := range consumers {
+			consumer <- value // Send to each consumer
+		}
+	}
+}
+
+func PrintButtonEvent(event elevio.ButtonEvent) {
+	var buttonType string
+	switch event.Button {
+	case elevio.BT_HallUp:
+		buttonType = "Hall Up"
+	case elevio.BT_HallDown:
+		buttonType = "Hall Down"
+	case elevio.BT_Cab:
+		buttonType = "Cab"
+	default:
+		buttonType = "Unknown"
+	}
+	fmt.Printf("Button Event - Floor: %d, Button: %s\n", event.Floor, buttonType)
+}

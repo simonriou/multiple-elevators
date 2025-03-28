@@ -224,6 +224,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 		case len(mLost) > 0: // A peer leaves the network
 
+			
 			lostElevator := mLost[0] // We assume that we only have one down elevator at a time
 
 			// Section_START -- CHANGING ROLES
@@ -244,7 +245,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 					newRole = "Master"
 					go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-						retrieveCabOrdersTx, askForCabOrdersRx)
+						retrieveCabOrdersTx, askForCabOrdersRx, hallBtnTx, activeElevatorsChannelTx)
 					newStatesTx <- backupStates // Sending the backupStates to the new master
 
 				}

@@ -75,7 +75,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
-				fmt.Printf("Reached floor: %v, sending orders: %v\n", a, latestState.LocalRequests)
+				//fmt.Printf("Reached floor: %v, sending orders: %v\n", a, latestState.LocalRequests)
 				localStatesForCabOrders <- StateMsg{id, latestState}
 
 				mutex_waiting.Lock()
@@ -152,7 +152,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 					}
 					lockMutexes(&mutex_posArray)
 				} else {
-					turnOffAllLights()
+					//turnOffAllLights()
 				}
 
 				// Case 2: HandleOrders sent a new Order and it is at a different floor

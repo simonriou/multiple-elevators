@@ -4,10 +4,16 @@ package main
 import (
 	"Driver-go/elevio"
 	"sync"
+	"time"
 )
 
 const numFloors = 4 // Number of floors
 const numElev = 3   // Number of elevators
+
+
+// Variables for the MotorStop
+const timerHallOrder time.Duration = 30 * time.Second   // Assuming 30 seconds for the timer
+const pollRateMotorStop time.Duration = 3 * time.Second // The rate at which we check for power shortage
 
 const ( // Ports
 	HallOrder_PORT           = 16120 + iota // Send hall orders (slave <-> master)
@@ -84,3 +90,6 @@ var (
 var mutex_d sync.Mutex // Mutex for the direction of the elevator
 
 var lastDirForStopFunction elevio.MotorDirection // The last direction the elevator was moving in before the stop button was pressed
+
+var mutex_lastSeenMotorStop sync.Mutex // Mutex for the lastSeen variable in detectMotorStop
+var mutex_elevatorOrdersMotorStop sync.Mutex
