@@ -192,7 +192,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
 	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int) {
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, emergencyStop chan bool) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
@@ -253,7 +253,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 					newRole = "Master"
 					go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-						retrieveCabOrdersTx, askForCabOrdersRx)
+						retrieveCabOrdersTx, askForCabOrdersRx, emergencyStop)
 					newStatesTx <- backupStates // Sending the backupStates to the new master
 
 				}
@@ -270,6 +270,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 			if len(mPeers) == 0 && len(mLost) > 0 { // This means that we were disconnected from the network
 				newRole = "Regular"
+				emergencyStop <- true // We need to stop the master routine
 			}
 
 			if newRole != currentRole {

@@ -38,6 +38,7 @@ func main() {
 	drv_newOrder := make(chan Order)
 	drv_DirectionChange := make(chan elevio.MotorDirection)
 	localStatesForCabOrders := make(chan StateMsg) // ALL - Turn off cab lights after completing order
+	emergencyStop := make(chan bool)               // ALL - Emergency stop channel
 
 	drv_buttons_forCabLights := make(chan elevio.ButtonEvent, 100)
 	drv_buttons_forOrderHandling := make(chan elevio.ButtonEvent, 100)
@@ -102,7 +103,7 @@ func main() {
 
 		// Starting the Master Routine
 		go MasterRoutine(hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-			retrieveCabOrdersTx, askForCabOrdersRx)
+			retrieveCabOrdersTx, askForCabOrdersRx, emergencyStop)
 
 		// This is the initial states of the elevators
 		var allStates [numElev]ElevState
@@ -157,7 +158,7 @@ func main() {
 	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx)      // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id) // Listens to peer updates on the network
+		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, emergencyStop) // Listens to peer updates on the network
 	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx) // Listens for completed hall orders
 	go handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders)
 	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)
