@@ -31,8 +31,11 @@ func redistributeOrders(localRequest []Order, hallBtnTx chan elevio.ButtonEvent)
 func detectMotorStop(newElevatorActivity chan elevatorActivity,
 	hallBtnTx chan elevio.ButtonEvent, activeElevatorsChannelTx chan []int,
 	idCompletedHallOrderForTimer chan int) {
+
 	var lastSeen = make(map[int]time.Time)                 // A map for keeping track of the times since we last saw the elevators
 	var elevatorOrdersMotorStop = make([][]Order, numElev) // The last received local request to one of the elevators
+	var hasPowerLoss = false
+	_ = hasPowerLoss
 
 	go func() {
 		for {
@@ -41,6 +44,9 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 
 			for id, t := range lastSeen {
 				if time.Since(t) > timerHallOrder && len(elevatorOrdersMotorStop[id]) > 0 { // and localrequest is empty
+
+					hasPowerLoss = true
+
 					// Signal that the elevator with the corresponding id is inactive
 					mutex_activeElevators.Lock()
 					alreadyExists := isElevatorActive(id)
@@ -86,9 +92,25 @@ func detectMotorStop(newElevatorActivity chan elevatorActivity,
 	for {
 		// We have receive confirmation that the hallOrder was attended to
 		id := <-idCompletedHallOrderForTimer
+
 		lockMutexes(&mutex_lastSeenMotorStop)
 		lastSeen[id] = time.Time{}
 		unlockMutexes(&mutex_lastSeenMotorStop)
+
+		if hasPowerLoss { // We changed states while being down, meaning we're not down anymore
+
+			hasPowerLoss = false
+			// Add the elevator to the activeElevators list
+			mutex_activeElevators.Lock()
+			alreadyExists := isElevatorActive(id)
+			if !alreadyExists {
+				activeElevators = append(activeElevators, id) // Add the elevator to the activeElevators list
+			}
+			activeElevators = sortElevators(activeElevators)
+			mutex_activeElevators.Unlock()
+			activeElevatorsChannelTx <- activeElevators // Send the activeElevators list to the other elevators
+
+		}
 	}
 
 }
