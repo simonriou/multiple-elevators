@@ -269,7 +269,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 			fmt.Print("Length of mLost: ", len(mLost), "\n")
 
 			if len(mPeers) == 0 && len(mLost) > 0 { // This means that we were disconnected from the network
-				currentRole = "Regular"
+				newRole = "Regular"
 			}
 
 			if newRole != currentRole {
