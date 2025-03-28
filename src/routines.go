@@ -48,7 +48,7 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 	for {
 		a := <-drv_buttons // BUTTON UPDATE
 
-		fmt.Print("\ndrv_buttons received button press\n")
+		// fmt.Print("\ndrv_buttons received button press\n")
 
 		// If it's a hall order, forwards it to the master
 		switch {

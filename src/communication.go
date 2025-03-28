@@ -80,9 +80,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 	for {
 		select {
 		case a := <-hallBtnRx:
-			fmt.Print("\nhallBtnRx in use\n")
 
-			fmt.Print("Master received new hall order\n")
+			// fmt.Print("Master received new hall order\n")
 
 			// Retrieves the information on the working elevators
 			var workingElevNb = len(activeElevators)
@@ -117,17 +116,15 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 			// Retrieve the id of the best elevator (relative to allStates)
 			bestElevator = indexMapping[bestElevator]
-			fmt.Printf("Best elevator according to the cost function: %v\n", bestElevator)
+			// fmt.Printf("Best elevator according to the cost function: %v\n", bestElevator)
 
 			HallOrderMessage := HallOrderMsg{bestElevator, btnPressToOrder(a)}
 
 			// Send the order to a slave
 			// fmt.Printf("HallOrderMsg: %v\n", HallOrderMessage)
 			hallOrderTx <- HallOrderMessage
-			fmt.Print("\nhallBtnRx done\n")
 
 		case a := <-singleStateRx: // A state update on singleStateRx
-			fmt.Print("\nsingleStateRx in use\n")
 
 			// Compare the old and new state and send a message on orderCompleted so that the order lights get taken care of
 			//        Assume that we dont delete and add hallOrders at the same time
@@ -156,10 +153,8 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 			mutex_backup.Unlock()
 
 			backupStatesTx <- allStates
-			fmt.Print("\nsingleStateRx done\n")
 
 		case id := <-askForCabOrdersRx:
-			fmt.Print("\naskForCabOrdersRx in use\n")
 
 			// Master sends cab orders to the new elevator
 			lostCabOrders := []Order{}
@@ -171,7 +166,6 @@ func MasterRoutine(hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMs
 
 			// Send the cab orders to the new elevator
 			retrieveCabOrdersTx <- CabOrderMsg{id, lostCabOrders}
-			fmt.Print("\naskForCabOrdersRx done\n")
 
 		case <-ctx.Done():
 			fmt.Print("\nMaster routine stopped\n")
