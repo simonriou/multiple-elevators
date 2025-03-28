@@ -2,6 +2,7 @@ package main
 
 import (
 	"Driver-go/elevio"
+	"fmt"
 	"math"
 	"time"
 )
@@ -74,6 +75,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				fmt.Print("Sent from attendToSpecificOrder (case consumer2)\n")
 				// fmt.Printf("Reached floor: %v, sending orders: %v\n", a, latestState.LocalRequests)
 				localStatesForCabOrders <- StateMsg{id, latestState}
 
@@ -124,6 +126,7 @@ func attendToSpecificOrder(d *elevio.MotorDirection, consumer2drv_floors chan in
 				PopOrders()
 				updateState(d, current_order.Floor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				fmt.Print("Sent from attendToSpecificOrder (case drv_newOrder)\n")
 				localStatesForCabOrders <- StateMsg{id, latestState}
 				unlockMutexes(&mutex_d, &mutex_elevatorOrders)
 

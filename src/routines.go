@@ -68,6 +68,7 @@ func handleButtonPress(drv_buttons chan elevio.ButtonEvent, hallBtnTx chan elevi
 			// Update & send the new state of the elevator to the master
 			updateState(d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
+			fmt.Print("Sent from handleButtonPress\n")
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
 			//fmt.Printf("Cab order from drv_buttons waiting to be sent to attend to specificOrders...\n")
@@ -86,6 +87,7 @@ func handleNewFloorReached(consumer1drv_floors chan int, d *elevio.MotorDirectio
 
 		updateState(d, lastFloor, elevatorOrders, &latestState)
 		singleStateTx <- StateMsg{id, latestState}
+		fmt.Print("Sent from handleNewFloorReached\n")
 	}
 }
 
@@ -180,6 +182,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 			// Update & send the new state of the elevator to the master
 			updateState(d, lastFloor, elevatorOrders, &latestState)
 			singleStateTx <- StateMsg{id, latestState}
+			fmt.Print("Sent from handleNewHallOrder\n")
 
 			// fmt.Print("Attempting to unlock mutexes\n")
 			unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
@@ -385,6 +388,7 @@ func handleRetrieveCab(retrieveCabOrdersRx chan CabOrderMsg, id int, d *elevio.M
 				// Update & send the new state of the elevator to the master
 				updateState(d, lastFloor, elevatorOrders, &latestState)
 				singleStateTx <- StateMsg{id, latestState}
+				fmt.Print("Sent from handleRetrieveCab\n")
 
 				unlockMutexes(&mutex_elevatorOrders, &mutex_d, &mutex_posArray)
 
