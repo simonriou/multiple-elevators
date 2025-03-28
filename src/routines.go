@@ -193,7 +193,7 @@ func handleNewHallOrder(hallOrderRx chan HallOrderMsg, id int, d *elevio.MotorDi
 func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, activeElevatorsChannelTx chan []int, backupStatesRx chan [numElev]ElevState,
 	hallBtnRx chan elevio.ButtonEvent, singleStateRx chan StateMsg, hallOrderTx chan HallOrderMsg,
 	backupStatesTx chan [numElev]ElevState, newStatesRx chan [numElev]ElevState, hallOrderCompletedTx chan []Order, retrieveCabOrdersTx chan CabOrderMsg, askForCabOrdersRx chan int,
-	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, ctx context.Context) {
+	newStatesTx chan [numElev]ElevState, roleChannel chan string, hallBtnTx chan elevio.ButtonEvent, id int, ctx context.Context, cancel context.CancelFunc) {
 	for {
 		p := <-peerUpdateCh // PEER UPDATE
 		var mPeers = p.Peers
@@ -271,6 +271,7 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 
 			if len(mPeers) == 0 && len(mLost) > 0 { // This means that we were disconnected from the network
 				newRole = "Regular"
+				cancel()
 			}
 
 			if newRole != currentRole {

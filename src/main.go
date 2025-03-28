@@ -163,7 +163,7 @@ func main() {
 	go handleNewHallOrder(hallOrderRx, id, &d, singleStateTx, drv_newOrder, hallOrderCompletedTx)      // Listens to new orders from the master
 	go handlePeerUpdate(peerUpdateCh, currentRole, activeElevatorsChannelTx, backupStatesRx,
 		hallBtnRx, singleStateRx, hallOrderTx, backupStatesTx, newStatesRx, hallOrderCompletedTx,
-		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, ctx) // Listens to peer updates on the network
+		retrieveCabOrdersTx, askForCabOrdersRx, newStatesTx, roleChannel, hallBtnTx, id, ctx, cancel) // Listens to peer updates on the network
 	go handleTurnOffLightsHallOrderCompleted(hallOrderCompletedRx) // Listens for completed hall orders
 	go handleTurnOffLightsCabOrderCompleted(localStatesForCabOrders)
 	go handleTurnOnLightsCabOrder(drv_buttons_forCabLights)
