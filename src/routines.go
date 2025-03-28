@@ -311,13 +311,13 @@ func handlePeerUpdate(peerUpdateCh chan peers.PeerUpdate, currentRole string, ac
 				}
 			}
 			// Section_END -- RE-ASSIGNING ORDERS
-
-			// Display the peer update
-			fmt.Printf("Peer update:\n")
-			fmt.Printf("  Peers:    %v\n", mPeers)
-			fmt.Printf("  New:      %v\n", mNew)
-			fmt.Printf("  Lost:     %v\n", mLost)
 		}
+
+		// Display the peer update
+		fmt.Printf("Peer update:\n")
+		fmt.Printf("  Peers:    %v\n", mPeers)
+		fmt.Printf("  New:      %v\n", mNew)
+		fmt.Printf("  Lost:     %v\n", mLost)
 	}
 }
 
