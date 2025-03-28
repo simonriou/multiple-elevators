@@ -10,9 +10,9 @@ Latest update: March, 28th
 - When an elevator experiences power loss and that another one takes the hall order that it had, the Hall Light turn off is delayed until the first elevator gets back on and goes for it.
 
 # Usage
-Here is a detailed explaination on how to use the multiple elevators repository. The binary for the client can be found in the `./binaries` directory, or can be downloaded from the releases section.
+Here is a detailed explaination on how to use the multiple elevators repository. The binary for the client can be found in the releases section.
 ## First launch
-Each elevator client must have a dedicated elevator server. One 'elevator' is thus composed of either a simulator (in the `./binaries` folder, `simElevatorServer`, `simElevatorServer.exe`, `simElevatorServerMacOS`) OR hardware server (`elevatorServer`) AND of a client (`./binaries` folder, `elevatorClient`, `elevatorClientMacOS` or `elevatorClientWindows.exe`). In the future, 'server' will refer to either the hardware server or the simulator. The recommended process to launch multiple is the following:
+Each elevator client must have a dedicated elevator server. One 'elevator' is thus composed of either a simulator (`simElevatorServer`, `simElevatorServer.exe`, `simElevatorServerMacOS`) OR hardware server (`elevatorServer`) AND of a client (`elevatorClient`, `elevatorClientMacOS` or `elevatorClientWindows.exe`, see releases section). In the future, 'server' will refer to either the hardware server or the simulator. The recommended process to launch multiple is the following:
 
 - Start with executing **every server**. The first variables declared in `globalVariables.go` must be adjusted to fit the number of elevators you will run. You must also specify the port on which the server and the client will communicate. Each pair of elevator / server must operate on a **different port**. They all must be **different than the ports defined** inside of `globalVariables.go`. An example would be
     - First pair of elevator / server operating on `12120`
@@ -35,7 +35,7 @@ Each elevator client must have a dedicated elevator server. One 'elevator' is th
     ./elevatorClient --port=12120 --id=0 --role=Master
     ```
 
-    Note that the command must be run inside of the `./binairies` directory, and that the order in which the parameters are passed is of no importance. Alternatively, you can build the project directly from the `.src/` directory, using `go run .` followed by the same set of arguments.
+    Note that the command must be run in the same directory as the binary, and that the order in which the parameters are passed is of no importance. Alternatively, you can build the project directly from the `.src/` directory, using `go run .` followed by the same set of arguments.
 
 ## Re-launch after shutdown (important)
 In case of the restart of an elevator after it went down, there is something to consider: whenever an elevator goes down, the two remaining ones change roles so that there always are *Master* and *PrimaryBackup* elevators at all times. This means that **if a *Master* or a *PrimaryBackup* goes down, we must restart it as a *Regular*** elevator, because another elevator will have taken his role by then. However **its ID must remain unchanged**. This is only affected for restarts after force termination of a script (using `Ctrl+C`). In case of a network or power loss (unplugging the respective cable), there is no need to specify a new role to the elevator.
